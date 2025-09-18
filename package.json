@@ -1,0 +1,25 @@
+{
+  "name": "fear-gui",
+  "version": "1.0.0",
+  "description": "Frontend Lightweight GUI Framework",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FearDread/fear-gui.git"
+  },
+  "author": "Garrett Haptonstall (FearDread)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/FearDread/fear-gui/issues"
+  },
+  "homepage": "https://github.com/FearDread/fear-gui#readme",
+  "dependencies": {
+    "@rollup/plugin-commonjs": "^28.0.6",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "rollup": "^4.50.2",
+    "rollup-plugin-terser": "^7.0.2"
+  }
+}
