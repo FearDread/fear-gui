@@ -1,4 +1,4 @@
-const FearRouter = (function() {
+const Router = (() => {
   // Private instance variable
   let instance = null;
 
@@ -550,3 +550,109 @@ const FearRouter = (function() {
     }
   };
 })();
+
+/* 
+  // Simple Router System
+  const RouterModule = (() => {
+    let isInitialized = false;
+    let config = {};
+    let currentRoute = '';
+
+    const init = options => {
+      if (isInitialized) return;
+      
+      config = options;
+      isInitialized = true;
+      CoreUtils.log('Initializing Router System', 'log', 'Router');
+
+      bindEvents();
+      handleInitialRoute();
+    };
+
+    const bindEvents = () => {
+      if (config.hashNavigation) {
+        $(window).on('hashchange.fear-router', handleHashChange);
+      }
+
+      $('a[href^="#"]').on('click.fear-router', handleLinkClick);
+    };
+
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      navigateTo(hash);
+    };
+
+    const handleLinkClick = e => {
+      const $link = $(e.currentTarget);
+      const href = $link.attr('href');
+      
+      if (href.startsWith('#') && href.length > 1) {
+        e.preventDefault();
+        const target = href.slice(1);
+        
+        if (config.smoothScroll) {
+          scrollToSection(target);
+        }
+        
+        navigateTo(target);
+      }
+    };
+
+    const navigateTo = route => {
+      if (currentRoute === route) return;
+
+      const previousRoute = currentRoute;
+      currentRoute = route;
+
+      // Update active states
+      updateActiveStates(route);
+
+      // Execute route handler
+      if (config.routes[route] && CoreUtils.isFunction(config.routes[route])) {
+        config.routes[route](route, previousRoute);
+      }
+
+      EventSystem.emit('route:change', { route, previousRoute });
+      CoreUtils.log(`Route changed: ${previousRoute} -> ${route}`, 'log', 'Router');
+    };
+
+    const updateActiveStates = route => {
+      $(`a[href="#${route}"]`).addClass(config.activeClass)
+        .siblings().removeClass(config.activeClass);
+    };
+
+    const scrollToSection = target => {
+      const $target = $(`#${target}, [name="${target}"]`).first();
+      
+      if ($target.length) {
+        const targetTop = $target.offset().top - config.scrollOffset;
+        
+        $('html, body').animate({
+          scrollTop: targetTop
+        }, 800, 'easeInOutCubic');
+      }
+    };
+
+    const handleInitialRoute = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        navigateTo(hash);
+      }
+    };
+
+    const destroy = () => {
+      if (!isInitialized) return;
+      
+      $(window).off('.fear-router');
+      $('a[href^="#"]').off('.fear-router');
+      
+      isInitialized = false;
+      config = {};
+      currentRoute = '';
+    };
+
+    const getCurrentRoute = () => currentRoute;
+
+    return { init, destroy, navigateTo, getCurrentRoute };
+  })();
+  */
