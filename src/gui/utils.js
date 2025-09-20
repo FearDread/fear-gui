@@ -1,5 +1,5 @@
   // Core Utility System
-  const CoreUtils = (() => {
+  const Utils = (() => {
     let options = {};
 
     const log = (message, type = 'log', module = 'Core') => {
@@ -59,8 +59,41 @@
 
     const parseHTML = html => $($.parseHTML(html));
 
+    
+
     return {
-      log, isFunction, isString, isObject, isArray, isEmpty,
-      debounce, throttle, extend, ready, setOptions, generateId, parseHTML
+      log, 
+      
+      isFunction, 
+      isString, 
+      isObject, 
+      isArray, 
+      isEmpty,
+      
+      debounce,
+      throttle, 
+      extend, 
+      ready, 
+      setOptions, 
+      generateId, 
+      parseHTML,
+      motionless: () => {
+        return window.matchMedia && 
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      }, 
+      sanitize: (html) => {
+        // Basic HTML sanitization - in production, use a proper sanitizer like DOMPurify
+        const temp = document.createElement('div');
+        temp.textContent = html;
+        return temp.innerHTML;
+      },
+            isValidURL: function (string) {
+        try {
+          new URL(string);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      },
     };
   })();

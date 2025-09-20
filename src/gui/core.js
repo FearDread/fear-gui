@@ -1,3 +1,15 @@
+import Utils from "./utils";
+import Router from "./router";
+import metrics from "./metrics";
+import cache from "./cache";
+
+
+// modules 
+import Events from "./modules/events";
+import Registry from "./modules/registry";
+import Components from "./modules/component";
+import Animation from "./modules/animation";
+
 /*!
  * FEAR Framework - Lightweight Portfolio & Landing Page Framework
  * Version: 4.0.0
@@ -16,7 +28,7 @@
 
   // Default configuration
   const DEFAULTS = {
-    debug: false,
+    debug: true,
     autoInit: true,
     namespace: 'fear',
     
@@ -32,7 +44,7 @@
       contactForm: true,
       particles: true,
       animations: true,
-      router: false
+      router: true
     },
 
     // Animation system
@@ -255,73 +267,73 @@
     // Public API
     const init = (element, opts = {}) => {
       if (isInitialized) {
-        CoreUtils.log('Framework already initialized', 'warn');
+        Utils.log('Framework already initialized', 'warn');
         return FEAR;
       }
 
       $element = $(element || document);
-      options = CoreUtils.extend(DEFAULTS, opts);
+      options = Utils.extend(DEFAULTS, opts);
       
-      CoreUtils.setOptions(options);
-      ModuleRegistry.setGlobalOptions(options);
+      Utils.setOptions(options);
+      Registry.setGlobalOptions(options);
       
-      CoreUtils.log(`Initializing ${FRAMEWORK_NAME} Framework v${VERSION}`);
+      Utils.log(`Initializing ${FRAMEWORK_NAME} Framework v${VERSION}`);
       isInitialized = true;
 
       // Setup event system
-      setupEventSystem();
+      setupEvents();
 
       if (options.autoInit) {
-        CoreUtils.ready(() => onDOMReady());
+        Utils.ready(() => onDOMReady());
         $(window).on('load.fear', () => onWindowLoad());
       }
       
       // Trigger init callback
-      if (CoreUtils.isFunction(options.callbacks.onInit)) {
+      if (Utils.isFunction(options.callbacks.onInit)) {
         options.callbacks.onInit.call(FEAR);
       }
 
-      EventSystem.emit('fear:init', { options });
+      Events.emit('fear:init', { options });
       return FEAR;
     };
 
-    const setupEventSystem = () => {
+    const setupEvents = () => {
       // Bind framework events to user callbacks
-      if (CoreUtils.isFunction(options.callbacks.onModuleInit)) {
-        EventSystem.on('module:registered', ({ name }) => {
+      if (Utils.isFunction(options.callbacks.onModuleInit)) {
+        Events.on('module:registered', ({ name }) => {
           options.callbacks.onModuleInit.call(FEAR, name);
         });
       }
 
-      if (CoreUtils.isFunction(options.callbacks.onModuleDestroy)) {
-        EventSystem.on('module:unregistered', ({ name }) => {
+      if (Utils.isFunction(options.callbacks.onModuleDestroy)) {
+        Events.on('module:unregistered', ({ name }) => {
           options.callbacks.onModuleDestroy.call(FEAR, name);
         });
       }
 
-      if (CoreUtils.isFunction(options.callbacks.onRouteChange)) {
-        EventSystem.on('route:change', (data) => {
+      if (Utils.isFunction(options.callbacks.onRouteChange)) {
+        Events.on('route:change', (data) => {
           options.callbacks.onRouteChange.call(FEAR, data);
         });
       }
 
-      if (CoreUtils.isFunction(options.callbacks.onAnimationComplete)) {
-        EventSystem.on('animation:complete', (data) => {
+      if (Utils.isFunction(options.callbacks.onAnimationComplete)) {
+        Events.on('animation:complete', (data) => {
           options.callbacks.onAnimationComplete.call(FEAR, data);
         });
       }
     };
 
     const onDOMReady = () => {
-      CoreUtils.log('DOM Ready - Initializing modules', 'log');
+      Utils.log('DOM Ready - Initializing modules', 'log');
 
       // Initialize core modules first
       if (options.modules.animations) {
-        initModule('animations', AnimationModule);
+        initModule('animations', Animation);
       }
 
       if (options.modules.router) {
-        initModule('router', RouterModule);
+        initModule('router', Router);
       }
 
       // Initialize component modules
@@ -329,39 +341,39 @@
                          'skillbars', 'mailchimp', 'contactForm', 'particles'];
 
       domModules.forEach(name => {
-        if (options.modules[name] && ComponentModules[name]) {
-          initModule(name, ComponentModules[name]);
+        if (options.modules[name] && Components[name]) {
+          initModule(name, Components[name]);
         }
       });
 
       // Trigger ready callback
-      if (CoreUtils.isFunction(options.callbacks.onReady)) {
+      if (Utils.isFunction(options.callbacks.onReady)) {
         options.callbacks.onReady.call(FEAR);
       }
 
-      EventSystem.emit('fear:ready');
+      Events.emit('fear:ready');
     };
 
     const onWindowLoad = () => {
-      CoreUtils.log('Window Load - Finalizing initialization', 'log');
+      Utils.log('Window Load - Finalizing initialization', 'log');
 
       // Initialize loader (if enabled)
-      const loaderPromise = options.modules.loader && ComponentModules.loader
-        ? initModule('loader', ComponentModules.loader)
+      const loaderPromise = options.modules.loader && Components.loader
+        ? initModule('loader', Components.loader)
         : Promise.resolve();
 
       loaderPromise.then(() => {
         // Initialize typed after loader
-        if (options.modules.typed && ComponentModules.typed) {
-          initModule('typed', ComponentModules.typed);
+        if (options.modules.typed && Components.typed) {
+          initModule('typed', Components.typed);
         }
         
         // Trigger load complete callback
-        if (CoreUtils.isFunction(options.callbacks.onLoadComplete)) {
+        if (Utils.isFunction(options.callbacks.onLoadComplete)) {
           options.callbacks.onLoadComplete.call(FEAR);
         }
 
-        EventSystem.emit('fear:loadComplete');
+        Events.emit('fear:loadComplete');
       });
     };
 
@@ -369,19 +381,22 @@
       try {
         const config = options[name];
         const result = module.init(config);
-        ModuleRegistry.register(name, module);
+        
+        Registry.register(name, module);
+        
         return result || Promise.resolve();
+      
       } catch (error) {
-        CoreUtils.log(`Error initializing module ${name}: ${error.message}`, 'error');
+        Utils.log(`Error initializing module ${name}: ${error.message}`, 'error');
         return Promise.reject(error);
       }
     };
 
     // Public API Methods
     const use = (name, moduleDefinition) => {
-      if (CoreUtils.isObject(moduleDefinition) && moduleDefinition.init) {
-        ComponentModules[name] = moduleDefinition;
-        CoreUtils.log(`Custom module registered: ${name}`, 'log');
+      if (Utils.isObject(moduleDefinition) && moduleDefinition.init) {
+        Components[name] = moduleDefinition;
+        Utils.log(`Custom module registered: ${name}`, 'log');
         
         if (isInitialized && options.modules[name]) {
           initModule(name, moduleDefinition);
@@ -393,10 +408,10 @@
     const enable = name => {
       options.modules[name] = true;
       
-      if (isInitialized && !ModuleRegistry.has(name)) {
-        const module = ComponentModules[name] || 
-                      (name === 'animations' ? AnimationModule : null) ||
-                      (name === 'router' ? RouterModule : null);
+      if (isInitialized && !Registry.has(name)) {
+        const module = Components[name] || 
+                      (name === 'animations' ? Animation : null) ||
+                      (name === 'router' ? Router : null);
         
         if (module) {
           initModule(name, module);
@@ -408,11 +423,11 @@
 
     const disable = name => {
       options.modules[name] = false;
-      ModuleRegistry.unregister(name);
+      Registry.unregister(name);
       return FEAR;
     };
 
-    const module = name => ModuleRegistry.get(name);
+    const module = name => Registry.get(name);
 
     const config = (key, value) => {
       if (arguments.length === 0) {
@@ -420,62 +435,62 @@
       }
       
       if (arguments.length === 1) {
-        return CoreUtils.isString(key) ? options[key] : null;
+        return Utils.isString(key) ? options[key] : null;
       }
 
-      if (CoreUtils.isString(key)) {
+      if (Utils.isString(key)) {
         options[key] = value;
-        CoreUtils.setOptions(options);
-        ModuleRegistry.setGlobalOptions(options);
+        Utils.setOptions(options);
+        Registry.setGlobalOptions(options);
       }
 
       return FEAR;
     };
 
     const extend = (newOptions) => {
-      options = CoreUtils.extend(options, newOptions);
-      CoreUtils.setOptions(options);
-      ModuleRegistry.setGlobalOptions(options);
+      options = Utils.extend(options, newOptions);
+      Utils.setOptions(options);
+      Registry.setGlobalOptions(options);
       return FEAR;
     };
 
     const on = (event, callback, context = null) => {
-      EventSystem.on(event, callback, context);
+      Events.on(event, callback, context);
       return FEAR;
     };
 
     const off = (event, callback = null) => {
-      EventSystem.off(event, callback);
+      Events.off(event, callback);
       return FEAR;
     };
 
     const emit = (event, data = null) => {
-      EventSystem.emit(event, data);
+      Events.emit(event, data);
       return FEAR;
     };
 
     const once = (event, callback, context = null) => {
-      EventSystem.once(event, callback, context);
+      Events.once(event, callback, context);
       return FEAR;
     };
 
     const destroy = () => {
       if (!isInitialized) return FEAR;
 
-      CoreUtils.log('Destroying framework instance');
+      Utils.log('Destroying framework instance');
       
       // Destroy all modules
-      ModuleRegistry.clear();
+      Registry.clear();
       
       // Remove event listeners
       $(window).off('.fear');
       $(document).off('.fear');
       
       // Clear event system
-      EventSystem.off();
+      Events.off();
       
       // Trigger destroy callback
-      if (CoreUtils.isFunction(options.callbacks.onDestroy)) {
+      if (Utils.isFunction(options.callbacks.onDestroy)) {
         options.callbacks.onDestroy.call(FEAR);
       }
       
@@ -488,24 +503,24 @@
       options = {};
       $element = null;
       
-      EventSystem.emit('fear:destroy');
+      Events.emit('fear:destroy');
       return FEAR;
     };
 
     // Utility methods
-    const utils = CoreUtils;
+    const utils = Utils;
 
     // Information methods
     const version = () => VERSION;
     const isInit = () => isInitialized;
-    const modules = () => ModuleRegistry.list();
+    const modules = () => Registry.list();
 
     // Animation helpers
     const animate = selector => {
-      if (ModuleRegistry.has('animations')) {
+      if (Registry.has('animations')) {
         const $elements = $(selector);
         $elements.each((i, el) => {
-          AnimationModule.animateElement($(el));
+          Animation.animateElement($(el));
         });
       }
       return FEAR;
@@ -513,15 +528,15 @@
 
     // Router helpers
     const navigate = route => {
-      if (ModuleRegistry.has('router')) {
-        RouterModule.navigateTo(route);
+      if (Registry.has('router')) {
+        Router.navigate(route);
       }
       return FEAR;
     };
 
     const route = () => {
-      if (ModuleRegistry.has('router')) {
-        return RouterModule.getCurrentRoute();
+      if (Registry.has('router')) {
+        return Router.getCurrentRoute();
       }
       return '';
     };
@@ -554,9 +569,9 @@
         return;
       }
       
-      if (CoreUtils.isString(options)) {
+      if (Utils.isString(options)) {
         const method = options;
-        if (CoreUtils.isFunction(instance[method])) {
+        if (Utils.isFunction(instance[method])) {
           const result = instance[method].apply(instance, args);
           return result !== undefined ? result : this;
         } else {
@@ -564,7 +579,7 @@
         }
       }
       
-      if (CoreUtils.isObject(options)) {
+      if (Utils.isObject(options)) {
         instance.extend(options);
       }
     });
@@ -576,7 +591,7 @@
   $.fn.fear.version = VERSION;
 
   // Auto-initialize
-  CoreUtils.ready(() => {
+  Utils.ready(() => {
     // Auto-init with data attributes
     $('[data-fear]').each(function() {
       const $element = $(this);
@@ -601,6 +616,6 @@
   }
 
   // Version info
-  CoreUtils.log(`${FRAMEWORK_NAME} Framework v${VERSION} loaded`);
+  Utils.log(`${FRAMEWORK_NAME} Framework v${VERSION} loaded`);
 
 })(jQuery, window, document);

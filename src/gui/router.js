@@ -1,4 +1,8 @@
-const Router = (() => {
+import Utils from "./utils";
+import Cache from "./cache";
+import Metrics from "./metrics";
+
+export const Router = (() => {
   // Private instance variable
   let instance = null;
 
@@ -15,102 +19,11 @@ const Router = (() => {
     this.options = $.extend(true, {}, DEFAULTS, options);
 
     // Initialize components
-    this.cache = new CacheManager(this.options);
-    this.performance = new PerformanceMonitor(this.options.performance.trackMetrics);
+    this.cache = new Cache(this.options);
+    this.performance = new Metrics(this.options.performance.trackMetrics);
     
     this.loadingPromises = new Map();
     this.retryAttempts = new Map();
-
-    this.utils = {
-      log: function (message, level = 'info', context = '') {
-        if (this.debug && console && console[level]) {
-          const prefix = context ? `[${PLUGIN_NAME}:${context}] ` : `[${PLUGIN_NAME}] `;
-          console[level](prefix + message);
-        }
-      },
-
-      sanitize: function (html) {
-        // Basic HTML sanitization - in production, use a proper sanitizer like DOMPurify
-        const temp = document.createElement('div');
-        temp.textContent = html;
-        return temp.innerHTML;
-      },
-
-      debounce: function (func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-          const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-          };
-          clearTimeout(timeout);
-          timeout = setTimeout(later, wait);
-        };
-      },
-
-      throttle: function (func, limit) {
-        let inThrottle;
-        return function (...args) {
-          if (!inThrottle) {
-            func.apply(this, args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, limit);
-          }
-        };
-      },
-
-      reduced: function () {
-        return window.matchMedia &&
-          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      },
-
-      isValidURL: function (string) {
-        try {
-          new URL(string);
-          return true;
-        } catch (_) {
-          return false;
-        }
-      },
-
-      generateId: function () {
-        return Math.random().toString(36).substr(2, 9);
-      }
-    };
-
-    this.network = {
-      createPromises: (url, routeName) => {
-        return new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error(`Timeout loading route: ${routeName}`));
-          }, this.options.loading.timeout);
-
-          $.ajax({
-            url,
-            method: 'GET',
-            cache: this.options.enableCache,
-            timeout: this.options.loading.timeout
-          })
-            .done((data) => {
-              clearTimeout(timeout);
-
-              // Sanitize HTML if enabled
-              if (this.options.security.sanitizeHTML && typeof data === 'string') {
-                data = Utils.sanitizeHTML(data);
-              }
-
-              resolve(data);
-            })
-            .fail((jqXHR, textStatus, errorThrown) => {
-              clearTimeout(timeout);
-              const error = new Error(`${textStatus}: ${errorThrown}`);
-              error.status = jqXHR.status;
-              error.statusText = jqXHR.statusText;
-              reject(error);
-            });
-        });
-      }
-    };
 
     this.handler = {
       hashChange: () => {
@@ -128,7 +41,7 @@ const Router = (() => {
         }
       },
       
-      route: (routeName) => {
+      route: async (routeName) => {
         if (this.isNavigating) {
           this.log('Navigation already in progress', 'warn');
           return;
