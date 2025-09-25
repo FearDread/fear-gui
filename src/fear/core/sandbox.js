@@ -9,7 +9,6 @@ export const SandBox = () => {
     return {
         // create new API sandbox instance
         create: ($gui, instance, options, module) => {
-
             this.id = instance;
             this.module = module;
             this.options = (options !== null) ? options : {}; 
@@ -18,8 +17,8 @@ export const SandBox = () => {
             $gui._broker.install(this);
             this.broker = $gui._broker;
 
-            /* Add utils object to sandbox api */
-            this.utils = Utils;
+            /* Add Utils object to sandbox api */
+            this.Utils = Utils;
              
             /* jQuery wrappers */
             this.fetch = $.ajax;
@@ -39,8 +38,10 @@ export const SandBox = () => {
              * @param context {object} - optional context object to be applied to returned object wrapper
              * @return {object} - $gui and jQuery wrapped element DOM object 
             **/
-            this.query = function(selector, context) {
-                var $el, _ret = {}, _this = this;
+            this.query = (selector, context) {
+                var $el;
+                const _this = this;
+                const _retainter = {};
                 
                 // check for applied context
                 if (context && context.find) {
@@ -52,15 +53,15 @@ export const SandBox = () => {
                 }
 
                 // set retainer object
-                _ret = $el;
-                _ret.length = $el.length;
+                _retainter = $el;
+                _retainter.length = $el.length;
 
-                _ret.query = function(sel) {
+                _retainter.query = (sel) => {
                     return _this.query(sel, $el);
                 };
 
-                _ret.create = function(el) {
-                    if (!utils.isStr(el)) {
+                _retainter.create = (el) => {
+                    if (!Utils.isStr(el)) {
                         this.warn('Error :: Element must be type String.');
                         return false;
                     }
@@ -68,7 +69,7 @@ export const SandBox = () => {
                     return document.createElement(el);
                 };
 
-                _ret.size = function() {
+                _retainter.size = () => {
                     return parseFloat(
                         window.getComputedStyle($el).fontSize
                     );
@@ -83,7 +84,7 @@ export const SandBox = () => {
             this.$ = this.query;
 
             /**
-             * Reference utils / jQuery each method 
+             * Reference Utils / jQuery each method 
             **/
             this.each = $.each;
 
@@ -92,7 +93,7 @@ export const SandBox = () => {
              *
              * @return {function} 
             **/
-            this.timeout = function(fn, ms) {
+            this.timeout = (fn, ms) => {
                 return window.setTimeout(fn, ms);
             };
 
@@ -108,7 +109,7 @@ export const SandBox = () => {
              *
              * @return {function} 
             **/
-            this.log = function() {
+            this.log = () => {
                 return $gui.debug.log(arguments);
             };
 
@@ -117,7 +118,7 @@ export const SandBox = () => {
              *
              * @return {function}
             **/
-            this.warn = function() {
+            this.warn = () => {
                 return $gui.debug.warn(arguments);
             };
 
@@ -126,8 +127,8 @@ export const SandBox = () => {
              *
              * @return {object} - specific window reference location 
             **/
-            this.getLocation = function() {
-                var win = $gui.config.win;
+            this.getLocation = () => {
+                const win = $gui.config.win;
 
                 return win && win.location;
             };
@@ -138,13 +139,11 @@ export const SandBox = () => {
              * @param fn {function} - the function to swap contexts 
              * @return {function} - executes fn 
             **/
-            this.hitch = function(fn) {
-                var argc, all;
-
-                argc = [].slice.call(arguments).splice(1);
+            this.hitch = (fn) => {
+                const argc = [].slice.call(arguments).splice(1);
 
                 return function() {
-                    all = argc.concat([].slice.call(arguments));
+                    const all = argc.concat([].slice.call(arguments));
 
                     return fn.apply(this, all);
                 };
@@ -158,20 +157,16 @@ export const SandBox = () => {
              * @param refetch {string} - optional key to update in cache
              * @return {object} - the stored results 
             **/
-            this.memoize = function(source, cache, refetch) {
-                var key;
-
+            this.memoize = (source, cache, refetch) => {
                 cache = cache || (cache = {});
 
-                return function(args) {
-                    key = arguments.length > 1 ? [].join.call(arguments, DELIM) : String(args);
+                return (args) => {
+                    const key = arguments.length > 1 ? [].join.call(arguments, DELIM) : String(args);
 
                     if (!(key in cache) || (refetch && cache[key] === refetch)) {
 
                         cache[key] = source.apply(source, arguments);
-
                     }
-
                     return cache[key];
                 };
             };

@@ -1,5 +1,6 @@
 import Utils from "./utils";
 import Broker from "./broker";
+import SandBox from "./sandbox";
 
 export const GUI = (($) => {
 
@@ -10,8 +11,7 @@ export const GUI = (($) => {
 
     // GUI Constructor
     function GUI() {
-
-        // default config
+        // Default configuration
         this.config = {
             logLevel: 0,
             name: 'FEAR_GUI',
@@ -20,37 +20,38 @@ export const GUI = (($) => {
             jquery: true,
             animations: false
         };
-        
-        // private objects & arrays for tracking 
+
+        // Private objects & arrays for tracking
         this._modules = {};
         this._plugins = [];
         this._instances = {};
         this._sandboxes = {};
         this._running = {};
         this._imports = [];
-        // add broker and router to core obj
-        this._broker = new Broker(this);
-        this._router = new Router(this);
 
-        // public access
-        this.Router = Router;
+        // Add broker and router to core object
+        this._broker = new Broker(this);
+
+        // Public access to classes
         this.Broker = Broker;
 
-        this.attach = function(imports) {
-            console.log('dynamic asyn module loading.');
-            console.log('imports = ', imports);
+        // Dynamic async module loading
+        this.attach = (imports) => {
+            console.log('Dynamic async module loading.');
+            console.log('Imports:', imports);
         };
 
+        // Configuration method
         this.configure = (options) => {
-            if (options !== null && Utils.isObj(options)) {
-                // set custom config options
+            if (options && Utils.isObj(options)) {
+                // Set custom config options
                 this.config = Utils.merge(this.config, options);
-                // set logging verbosity
+
+                // Set logging verbosity
                 this.debug.level = this.config.logLevel || 0;
             }
         };
     }
-
     // console log wrapper
     GUI.prototype.debug = {
         level: 0,
@@ -59,67 +60,48 @@ export const GUI = (($) => {
 
         /**
          * Adds a warning message to the console.
-         *
          * @param {String} out the message
-        **/
-        warn: function(out) {
+         */
+        warn(out) {
             if (this.level < 2) {
+                const args = ['WARN:', ...arguments];
 
-                [].unshift.call(arguments, 'WARN:');
-
-                if (typeof window !== undefined && window.console && console.warn) {
-
-                    this._logger("warn", [].slice.call(arguments));
-
-                } else if (window.console && console.log) {
-
-                    this._logger("log", [].slice.call(arguments));
-
-                } else if (window.opera && window.opera.postError) {
-
-                    window.opera.postError("WARNING: " + out);
-
+                if (typeof window !== 'undefined' && window.console?.warn) {
+                    this._logger("warn", args);
+                } else if (window.console?.log) {
+                    this._logger("log", args);
+                } else if (window.opera?.postError) {
+                    window.opera.postError(`WARNING: ${out}`);
                 }
             }
         },
-        
+
         /**
          * Adds a message to the console.
-         *
          * @param {String} out the message
-        **/
-        log: function(out) {
+         */
+        log(out) {
             if (this.level < 1) {
-                if (window.console && console.log) {
-
-                    [].unshift.call(arguments, 'Debug:');
-
-                    this._logger("log", [].slice.call(arguments));
-
-                } else if (window.opera && window.opera.postError) {
-
-                    window.opera.postError("DEBUG: " + out);
-
+                if (window.console?.log) {
+                    const args = ['Debug:', ...arguments];
+                    this._logger("log", args);
+                } else if (window.opera?.postError) {
+                    window.opera.postError(`DEBUG: ${out}`);
                 }
             }
         },
 
-        _logger: function(type, arr) {
+        _logger(type, arr) {
+            this.history.push({ type, args: arr });
 
-            this.history.push({type:arr});
-
-            if (console.log.apply) {
-
+            if (console[type]?.apply) {
                 console[type].apply(console, arr);
-
             } else {
-
                 console[type](arr);
             }
         },
-        
-        _stackTrace: function() {
 
+        _stackTrace() {
             this.log(this.history);
         }
     };
@@ -135,29 +117,28 @@ export const GUI = (($) => {
      * @param options {object} - optional object of extra parameters that will be passed to load() 
      * @return this {object}
     **/
-    GUI.prototype.create = (id, creator, options) => {
-        var error;
-
-        if (!options || options === null) {
-          options = {};
-        }
-
-        error = Utils.isType("string", id, "module ID") || Utils.isType("function", creator, "creator") || Utils.isType("object", options, "option parameter");
+    GUI.prototype.create = (id, creator, options = {}) => {
+        // Validate input parameters
+        const error = Utils.isType("string", id, "module ID") ||
+            Utils.isType("function", creator, "creator") ||
+            Utils.isType("object", options, "option parameter");
 
         if (error) {
-          this.debug.warn("could not register module '" + id + "': " + error);
-          return this;
+            this.debug.warn(`could not register module '${id}': ${error}`);
+            return this;
         }
 
+        // Check if module is already registered
         if (id in this._modules) {
-          this.debug.log("module " + id + " was already registered");
-          return this;
+            this.debug.log(`module ${id} was already registered`);
+            return this;
         }
 
+        // Register the module
         this._modules[id] = {
-          id: id,
-          creator: creator,
-          options: options
+            id,
+            creator,
+            options
         };
 
         return this;
@@ -171,16 +152,19 @@ export const GUI = (($) => {
      * @param cb {function} - callback function 
      * @return boot {function} - call boot method and create new sandbox instance 
     **/
-    GUI.prototype.start = (moduleId, opt, cb) => {
-        if (!opt || opt === null) opt = {};
+    GUI.prototype.start = (moduleId, opt = {}, cb = () => { }) => {
+        // Handle different parameter combinations
+        if (arguments.length === 0) {
+            return this._startAll();
+        }
 
-        if (!cb || cb === null) cb = function() {};
+        if (moduleId instanceof Array) {
+            return this._startAll(moduleId, opt);
+        }
 
-        if (arguments.length === 0) return this._startAll();
-
-        if (moduleId instanceof Array) return this._startAll(moduleId, opt);
-
-        if (typeof moduleId === "function") return this._startAll(null, moduleId);
+        if (typeof moduleId === "function") {
+            return this._startAll(null, moduleId);
+        }
 
         if (typeof opt === "function") {
             cb = opt;
@@ -188,48 +172,53 @@ export const GUI = (($) => {
         }
 
         const id = opt.instanceId || moduleId;
-        const error = Utils.isType("string", moduleId, "module ID") || Utils.isType("object", opt, "second parameter") || (!this._modules[moduleId] ? "module doesn't exist" : void 0);
 
-        if (error) return this._fail(error, cb);
+        // Validate parameters
+        const error = Utils.isType("string", moduleId, "module ID") ||
+            Utils.isType("object", opt, "second parameter") ||
+            (!this._modules[moduleId] ? "module doesn't exist" : undefined);
 
-        if (this._running[id] === true) return this._fail(new Error("module was already started"), cb);
+        if (error) {
+            return this._fail(error, cb);
+        }
 
-        const initInst = ((_this) => {
+        if (this._running[id] === true) {
+            return this._fail(new Error("module was already started"), cb);
+        }
 
-            return async (err, instance, opt) => {
-                if (err) return _this._fail(err, cb);
-        
-                try {
-                    if (Utils.hasArgs(instance.load, 2)) {
+        // Initialize instance handler
+        const initInstance = async (err, instance, options) => {
+            if (err) {
+                return this._fail(err, cb);
+            }
 
-                        return instance.load(opt, (err) => {
-
-                            if (!err) _this._running[id] = true;
-                            return cb(err);
-                        });
-                    } else {
-
-                        instance.load(opt);
-                        _this._running[id] = true;
-
-                        return cb();
-                    }
-                } catch (_error) {
-                    e = _error;
-                    return _this._fail(e, cb);
+            try {
+                // Check if load method expects a callback
+                if (Utils.hasArgs(instance.load, 2)) {
+                    return instance.load(options, (loadErr) => {
+                        if (!loadErr) {
+                            this._running[id] = true;
+                        }
+                        return cb(loadErr);
+                    });
+                } else {
+                    // Synchronous load
+                    instance.load(options);
+                    this._running[id] = true;
+                    return cb();
                 }
-            };
-        })(this);
+            } catch (e) {
+                return this._fail(e, cb);
+            }
+        };
 
-        return this.boot(((_this) => {
-
-            return function(err) {
-
-                if (err) return _this._fail(err, cb);
-
-                return _this._createInstance(moduleId, opt, initInst);
-            };
-        })(this));
+        // Boot and create instance
+        return this.boot((err) => {
+            if (err) {
+                return this._fail(err, cb);
+            }
+            return this._createInstance(moduleId, opt, initInstance);
+        });
     };
 
     /** 
@@ -240,37 +229,30 @@ export const GUI = (($) => {
      * @return this {object}
     **/
     GUI.prototype.use = (plugin, opt) => {
-        var i, len, p;
-
         if (Utils.isArr(plugin)) {
-
-            for (i = 0, len = plugin.length; i < len; i++) {
-                p = plugin[i];
-
-                switch (typeof p) {
-                    case "function":
-                        this.use(p);
-                        break;
-
-                    case "object":
-                        this.use(p.plugin, p.options);
+            // Handle array of plugins
+            plugin.forEach(p => {
+                if (typeof p === "function") {
+                    this.use(p);
+                } else if (typeof p === "object") {
+                    this.use(p.plugin, p.options);
                 }
+            });
+        } else {
+            // Must be a function
+            if (!Utils.isFunc(plugin)) {
+                return this;
             }
 
-      } else {
-          // must be function
-          if (!Utils.isFunc(plugin)) return this;
+            // Add to _plugins array
+            this._plugins.push({
+                creator: plugin,
+                options: opt
+            });
+        }
 
-          // add to _plugins array
-          this._plugins.push({
-              creator: plugin,
-              options: opt
-          });
-      }
-
-      return this;
+        return this;
     };
-
     /** 
      * Stops all running instances 
      *
@@ -278,15 +260,15 @@ export const GUI = (($) => {
      * @param callback {function} - optional callback to run when module stopped
      * @return this {object}
     **/
-    GUI.prototype.stop = function(id, callback) {
+    GUI.prototype.stop = function (id, callback) {
         var instance;
 
         if (cb === null) {
-            cb = function() {};
+            cb = function () { };
         }
 
         if (arguments.length === 0 || typeof id === "function") {
-            this._run.all((function() {
+            this._run.all((function () {
                 var results = [], x;
 
                 for (x in this._instances) {
@@ -295,8 +277,8 @@ export const GUI = (($) => {
 
                 return results;
 
-            }).call(this), ((function(_this) {
-                return function() {
+            }).call(this), ((function (_this) {
+                return function () {
                     return _this.stop.apply(_this, arguments);
                 };
             })(this)), id, true);
@@ -310,11 +292,11 @@ export const GUI = (($) => {
             this._broker.off(instance);
 
             // run unload method in stopped modules
-            this._runSandboxPlugins('unload', this._sandboxes[id], (function(_this) {
-                return function(err) {
+            this._runSandboxPlugins('unload', this._sandboxes[id], (function (_this) {
+                return function (err) {
                     if (Utils.hasArgs(instance.unload)) {
 
-                        return instance.unload(function(err2) {
+                        return instance.unload(function (err2) {
                             delete _this._running[id];
 
                             return cb(err || err2);
@@ -345,9 +327,9 @@ export const GUI = (($) => {
     **/
     GUI.prototype.plugin = (plugin, module) => {
 
-        if (plugin.fn && Utils.isFunc(plugin.fn)) { 
+        if (plugin.fn && Utils.isFunc(plugin.fn)) {
 
-            $.fn[module.toLowerCase()] = function(options) {
+            $.fn[module.toLowerCase()] = function (options) {
                 return new plugin.fn(this, options);
             };
         } else {
@@ -372,15 +354,15 @@ export const GUI = (($) => {
 
             for (var j = 0, leng = ref.length; j < leng; j++) {
                 plugin = ref[j];
-                
+
                 if (plugin.booted !== true) {
                     results.push(((p) => {
 
                         if (Utils.hasArgs(p.creator, 3)) {
                             return (next) => {
                                 var plugin;
-                            
-                                return p.creator(core, p.options, function(err) {
+
+                                return p.creator(core, p.options, function (err) {
                                     if (!err) {
                                         p.booted = true;
                                         p.plugin = plugin;
@@ -421,14 +403,14 @@ export const GUI = (($) => {
         * @param args {array} - arguments list 
         * @return void
         **/
-        all:  (args, fn, cb, force) => {
+        all: (args, fn, cb, force) => {
             var a, tasks;
 
             if (!args || args === null) {
                 args = [];
             }
 
-            tasks = ( () {
+            tasks = (() {
                 var j, len, results1;
 
                 results1 = [];
@@ -436,8 +418,8 @@ export const GUI = (($) => {
                 for (j = 0, len = args.length; j < len; j++) {
                     a = args[j];
 
-                    results1.push(( (a) {
-                        return  (next) {
+                    results1.push(((a) {
+                        return (next) {
                             return fn(a, next);
                         };
                     })(a));
@@ -456,16 +438,16 @@ export const GUI = (($) => {
         * @param args {array} - arguments list 
         * @return void
         **/
-        parallel:  (tasks, cb, force) => {
+        parallel: (tasks, cb, force) => {
             var count, errors, hasErr, i, j, len, results, paralleled, task;
 
             if (!tasks || tasks === null) {
 
                 tasks = [];
 
-            }else if (!cb || cb === null) {
+            } else if (!cb || cb === null) {
 
-                cb = ( () {});
+                cb = (() { });
             }
 
             count = tasks.length;
@@ -483,10 +465,10 @@ export const GUI = (($) => {
             for (i = j = 0, len = tasks.length; j < len; i = ++j) {
                 task = tasks[i];
 
-                paralleled.push(( (t, idx) {
+                paralleled.push(((t, idx) {
                     var e, next;
 
-                    next =  () {
+                    next = () {
                         var err, res;
 
                         err = arguments[0];
@@ -532,14 +514,14 @@ export const GUI = (($) => {
         * @param args {array} - arguments list 
         * @return void
         **/
-        series:  (tasks, cb, force) => {
+        series: (tasks, cb, force) => {
             var count, errors, hasErr, i, next, results;
 
             if (!tasks || tasks === null) {
                 tasks = [];
             }
             if (!cb || cb === null) {
-                cb = ( () {});
+                cb = (() { });
             }
 
             i = -1;
@@ -554,7 +536,7 @@ export const GUI = (($) => {
             errors = [];
             hasErr = false;
 
-            next =  () {
+            next = () {
                 var e, err, res;
 
                 err = arguments[0];
@@ -602,14 +584,14 @@ export const GUI = (($) => {
         * @param force {boolean} - optional force errors
         * @return { } execute 
         **/
-        first:  (tasks, cb, force) => {
+        first: (tasks, cb, force) => {
             var count, errors, i, next, result;
 
             if (!tasks || tasks === null) {
                 tasks = [];
             }
             if (!cb || cb === null) {
-                cb = ( () {});
+                cb = (() { });
             }
 
             i = -1;
@@ -623,7 +605,7 @@ export const GUI = (($) => {
 
             errors = [];
 
-            next =  () {
+            next = () {
                 var e, err, res;
 
                 err = arguments[0];
@@ -671,7 +653,7 @@ export const GUI = (($) => {
         * @param args {array} - arguments list 
         * @return void
         **/
-        waterfall:  (tasks, cb) => {
+        waterfall: (tasks, cb) => {
             let i = -1;
 
             if (tasks.length === 0) return cb();
@@ -719,7 +701,7 @@ export const GUI = (($) => {
     GUI.prototype._startAll = (mods, cb) => {
         // start all stored modules
         if (!mods || mods === null) {
-            mods = (function() {
+            mods = (function () {
                 var results = [], m;
 
                 for (m in this._modules) {
@@ -731,19 +713,19 @@ export const GUI = (($) => {
         }
 
         // self executing action
-        const startAction = (function(_this) {
-            return function(m, next) {
+        const startAction = (function (_this) {
+            return function (m, next) {
                 return _this.start(m, _this._modules[m].options, next);
             };
         })(this);
 
         // optional done callback for async loading 
-        const done = function(err) {
+        const done = function (err) {
             var e, i, j, k, len, mdls, modErrors, x;
 
             if ((err !== null ? err.length : void 0) > 0) {
                 modErrors = {};
-                
+
                 for (i = j = 0, len = err.length; j < len; i = ++j) {
                     x = err[i];
 
@@ -753,7 +735,7 @@ export const GUI = (($) => {
                 }
 
                 // store all available modules errors
-                mdls = (function() {
+                mdls = (function () {
                     var results = [], k;
 
                     for (k in modErrors) {
@@ -785,68 +767,54 @@ export const GUI = (($) => {
       * @return {function} - run sandboxed instances
     **/
     GUI.prototype._createInstance = (moduleId, o, cb) => {
-        var Sandbox, iOpts, id, j, key, len, module, obj, opt, ref, sb, val;
+        const { options: opt } = o;
+        const id = o.instanceId || moduleId;
+        const module = this._modules[moduleId];
 
-        opt = o.options;
-        id = o.instanceId || moduleId;
-
-        module = this._modules[moduleId];
-
+        // Return existing instance if it exists
         if (this._instances[id]) {
             return cb(this._instances[id]);
         }
 
-        iOpts = {};
-        ref = [module.options, opt];
+        // Merge options with module defaults (module options have lower priority)
+        const iOpts = {
+            ...module.options,
+            ...opt
+        };
 
-        for (j = 0, len = ref.length; j < len; j++) {
-            obj = ref[j];
+        // Create new API Sandbox
+        const sb = new SandBox().create(this, id, iOpts, moduleId);
 
-            if (obj) {
-                for (key in obj) {
-                    val = obj[key];
-                    
-                    if (!iOpts[key] || iOpts[key] === null) {
-                        iOpts[key] = val;
-                    }
-                }
+        // Add config object if available
+        if (this.config) {
+            sb.config = this.config;
+        }
+
+        // Run sandboxed instance load method
+        return this._runSandboxPlugins('load', sb, (err) => {
+            if (err) {
+                return cb(err);
             }
-        }
 
-        // create new API Sandbox
-        sb = new API().create(this, id, iOpts, moduleId);
+            const instance = new module.creator(sb);
 
-        // add config object if avail
-        if (this.config && this.config !== null) {
-          sb.config = this.config;
-        }
-
-        // run sandboxed instance load method
-        return this._runSandboxPlugins('load', sb, (function(_this) {
-            return function(err) {
-                var instance;
-
-                instance = new module.creator(sb);
-
-                if (typeof instance.load !== "function") {
-
-                    // determine if module is jQuery plugin
-                    if (instance.fn && typeof instance.fn === 'function') {
-                        return _this.plugin(instance, id); 
-                    }
-
-                    return cb(new Error("module has no 'load' or 'fn' method"));
+            // Check if module has required methods
+            if (typeof instance.load !== "function") {
+                // Check if it's a jQuery plugin
+                if (instance.fn && typeof instance.fn === 'function') {
+                    return this.plugin(instance, id);
                 }
+                return cb(new Error("module has no 'load' or 'fn' method"));
+            }
 
-                // store instance and sandbox
-                _this._instances[id] = instance;
-                _this._sandboxes[id] = sb;
+            // Store instance and sandbox
+            this._instances[id] = instance;
+            this._sandboxes[id] = sb;
 
-                return cb(null, instance, iOpts);
-            };
-        })(this));
+            return cb(null, instance, iOpts);
+        });
     };
-    
+
     /** 
       * Sets up needed tasks for module initializations 
       *
@@ -856,37 +824,23 @@ export const GUI = (($) => {
       * @return {function} - GUI._run.seris
     **/
     GUI.prototype._runSandboxPlugins = (ev, sb, cb) => {
-        var p, tasks;
+        // Filter plugins that have the specified event handler
+        const tasks = this._plugins
+            .filter(plugin => typeof plugin.plugin?.[ev] === "function")
+            .map(plugin => {
+                const eventHandler = plugin.plugin[ev];
 
-        tasks = (function() {
-            var j, len, ref, ref1, results;
-
-            ref = this._plugins;
-            results = [];
-
-            for (j = 0, len = ref.length; j < len; j++) {
-                p = ref[j];
-
-                if (typeof ((ref1 = p.plugin) !== null ? ref1[ev] : void 0) === "function") {
-                    results.push((function(p) {
-                        var fn;
-                        fn = p.plugin[ev];
-
-                        return function(next) {
-                            if (Utils.hasArgs(fn, 3)) {
-                                return fn(sb, p.options, next);
-                            } else {
-                                fn(sb, p.options);
-                                return next();
-                            }
-                        };
-                    })(p));
-                }
-            }
-
-            return results;
-
-        }).call(this);
+                return (next) => {
+                    // Check if the handler expects a callback (3 parameters: sb, options, next)
+                    if (Utils.hasArgs(eventHandler, 3)) {
+                        return eventHandler(sb, plugin.options, next);
+                    } else {
+                        // Handler doesn't use callback, call it synchronously
+                        eventHandler(sb, plugin.options);
+                        return next();
+                    }
+                };
+            });
 
         return this._run.series(tasks, cb, true);
     };
