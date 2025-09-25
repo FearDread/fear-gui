@@ -275,31 +275,19 @@ $.FEAR().use((GUI) => {
     };
   };
 
-  /**
-   * Plugin load function
-   * @param {object} api - GUI SandBox object
-   */
-  const load = (sandbox) => {
+  return {
+    load: (sandbox) => {
     // Ensure net namespace exists
     if (!sandbox.Router) {
       sandbox.Router = new Router();
     }
-  };
-
-  /**
-   * Plugin unload function
-   * @param {object} api - GUI SandBox object
-   */
-  const unload = (sandbox) => {
+  },
+    unload: (sandbox) => {
     if (sandbox.Router) {
       // Clean up router
       sandbox.Router.flush();
       delete sandbox.Router;
     }
-  };
-
-  return {
-    load: load,
-    unload: unload
+  }
   };
 });
