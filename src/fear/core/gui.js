@@ -2,7 +2,7 @@ import Utils from "./utils";
 import Broker from "./broker";
 import SandBox from "./sandbox";
 
-export const GUI = (($) => {
+export const FEAR = (($) => {
 
     // Make sure we have jQuery
     if (typeof $ === 'undefined' || $ === null) {
@@ -52,6 +52,7 @@ export const GUI = (($) => {
             }
         };
     }
+
     // console log wrapper
     GUI.prototype.debug = {
         level: 0,
@@ -149,26 +150,20 @@ export const GUI = (($) => {
      *
      * @param moduleId {string} - module name or identifier
      * @param opt {object} - optional options object
-     * @param cb {function} - callback function 
-     * @return boot {function} - call boot method and create new sandbox instance 
+     * @return Promise - resolves when module is started
     **/
-    GUI.prototype.start = (moduleId, opt = {}, cb = () => { }) => {
+    GUI.prototype.start = (moduleId, opt = {}) => {
         // Handle different parameter combinations
         if (arguments.length === 0) {
             return this._startAll();
         }
 
         if (moduleId instanceof Array) {
-            return this._startAll(moduleId, opt);
+            return this._startAll(moduleId);
         }
 
         if (typeof moduleId === "function") {
-            return this._startAll(null, moduleId);
-        }
-
-        if (typeof opt === "function") {
-            cb = opt;
-            opt = {};
+            return this._startAll();
         }
 
         const id = opt.instanceId || moduleId;
@@ -179,46 +174,40 @@ export const GUI = (($) => {
             (!this._modules[moduleId] ? "module doesn't exist" : undefined);
 
         if (error) {
-            return this._fail(error, cb);
+            return Promise.reject(new Error(error));
         }
 
         if (this._running[id] === true) {
-            return this._fail(new Error("module was already started"), cb);
+            return Promise.reject(new Error("module was already started"));
         }
 
-        // Initialize instance handler
-        const initInstance = async (err, instance, options) => {
-            if (err) {
-                return this._fail(err, cb);
-            }
-
-            try {
-                // Check if load method expects a callback
-                if (Utils.hasArgs(instance.load, 2)) {
-                    return instance.load(options, (loadErr) => {
-                        if (!loadErr) {
-                            this._running[id] = true;
-                        }
-                        return cb(loadErr);
-                    });
-                } else {
-                    // Synchronous load
-                    instance.load(options);
-                    this._running[id] = true;
-                    return cb();
-                }
-            } catch (e) {
-                return this._fail(e, cb);
-            }
-        };
-
         // Boot and create instance
-        return this.boot((err) => {
-            if (err) {
-                return this._fail(err, cb);
-            }
-            return this._createInstance(moduleId, opt, initInstance);
-        });
+        return this.boot()
+            .then(() => this._createInstance(moduleId, opt))
+            .then(({ instance, options }) => {
+                // Check if load method expects a callback or returns a promise
+                if (instance.load && typeof instance.load === 'function') {
+                    const loadResult = instance.load(options);
+                    
+                    // If load returns a promise, use it
+                    if (loadResult && typeof loadResult.then === 'function') {
+                        return loadResult.then(() => {
+                            this._running[id] = true;
+                        });
+                    } else {
+                        // Synchronous load
+                        this._running[id] = true;
+                        return Promise.resolve();
+                    }
+                } else {
+                    this._running[id] = true;
+                    return Promise.resolve();
+                }
+            })
+            .catch(err => {
+                this.debug.warn(err);
+                throw new Error("could not start module: " + err.message);
+            });
     };
 
     /** 
@@ -253,69 +242,47 @@ export const GUI = (($) => {
 
         return this;
     };
+
     /** 
      * Stops all running instances 
      *
      * @param id {string} - module identifier 
-     * @param callback {function} - optional callback to run when module stopped
-     * @return this {object}
+     * @return Promise - resolves when module is stopped
     **/
-    GUI.prototype.stop = function (id, callback) {
-        var instance;
-
-        if (cb === null) {
-            cb = function () { };
-        }
-
+    GUI.prototype.stop = function (id) {
         if (arguments.length === 0 || typeof id === "function") {
-            this._run.all((function () {
-                var results = [], x;
-
-                for (x in this._instances) {
-                    results.push(x);
-                }
-
-                return results;
-
-            }).call(this), ((function (_this) {
-                return function () {
-                    return _this.stop.apply(_this, arguments);
-                };
-            })(this)), id, true);
-
-        } else if (instance === this._instances[id]) {
-
-            // remove instance from instances cache
-            delete this._instances[id];
-
-            // disable any events registered by module
-            this._broker.off(instance);
-
-            // run unload method in stopped modules
-            this._runSandboxPlugins('unload', this._sandboxes[id], (function (_this) {
-                return function (err) {
-                    if (Utils.hasArgs(instance.unload)) {
-
-                        return instance.unload(function (err2) {
-                            delete _this._running[id];
-
-                            return cb(err || err2);
-                        });
-                    } else {
-
-                        if (typeof instance.unload === "function") {
-                            instance.unload();
-                        }
-
-                        delete _this._running[id];
-
-                        return cb(err);
-                    }
-                };
-            })(this));
+            const moduleIds = Object.keys(this._instances);
+            return this._run.all(moduleIds.map(moduleId => () => this.stop(moduleId)));
         }
 
-        return this;
+        const instance = this._instances[id];
+        
+        if (!instance) {
+            return Promise.resolve();
+        }
+
+        // remove instance from instances cache
+        delete this._instances[id];
+
+        // disable any events registered by module
+        this._broker.off(instance);
+
+        // run unload method in stopped modules
+        return this._runSandboxPlugins('unload', this._sandboxes[id])
+            .then(() => {
+                if (instance.unload && typeof instance.unload === 'function') {
+                    const unloadResult = instance.unload();
+                    
+                    // If unload returns a promise, use it
+                    if (unloadResult && typeof unloadResult.then === 'function') {
+                        return unloadResult;
+                    }
+                }
+                return Promise.resolve();
+            })
+            .then(() => {
+                delete this._running[id];
+            });
     };
 
     /** 
@@ -326,436 +293,237 @@ export const GUI = (($) => {
      * @return {function} - initialized jQuery plugin 
     **/
     GUI.prototype.plugin = (plugin, module) => {
-
         if (plugin.fn && Utils.isFunc(plugin.fn)) {
-
             $.fn[module.toLowerCase()] = function (options) {
                 return new plugin.fn(this, options);
             };
         } else {
-            GUI.log('Error :: Missing ' + plugin + ' fn() method.');
+            this.debug.log('Error :: Missing ' + plugin + ' fn() method.');
         }
     };
 
     /** 
      * Load single or all available core plugins 
      *
-     * @param cb {function} - callback to execute after plugins loaded 
-     * @return this {object} - return GUI object with tasks array
+     * @return Promise - resolves when plugins are loaded
     **/
-    GUI.prototype.boot = (cb) => {
-        let plugin;
+    GUI.prototype.boot = () => {
         const core = this;
 
-        const tasks = (() => {
-            var leng;
-            const ref = this._plugins;
-            const results = [];
-
-            for (var j = 0, leng = ref.length; j < leng; j++) {
-                plugin = ref[j];
-
-                if (plugin.booted !== true) {
-                    results.push(((p) => {
-
-                        if (Utils.hasArgs(p.creator, 3)) {
-                            return (next) => {
-                                var plugin;
-
-                                return p.creator(core, p.options, function (err) {
-                                    if (!err) {
-                                        p.booted = true;
-                                        p.plugin = plugin;
-                                    }
-
-                                    return next();
-                                });
-                            };
+        const tasks = this._plugins
+            .filter(plugin => plugin.booted !== true)
+            .map(plugin => () => {
+                return new Promise((resolve, reject) => {
+                    try {
+                        // Check if creator expects a callback (3 parameters: core, options, next)
+                        if (Utils.hasArgs(plugin.creator, 3)) {
+                            plugin.creator(core, plugin.options, (err) => {
+                                if (err) {
+                                    reject(err);
+                                } else {
+                                    plugin.booted = true;
+                                    resolve();
+                                }
+                            });
                         } else {
-                            return (next) => {
-                                p.plugin = p.creator(core, p.options);
-                                p.booted = true;
-
-                                return next();
-                            };
+                            plugin.plugin = plugin.creator(core, plugin.options);
+                            plugin.booted = true;
+                            resolve();
                         }
-                    })(p));
-                }
-            }
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+            });
 
-            return results;
-
-        }).call(this);
-
-        this._run.series(tasks, cb, true);
-
-        return this;
+        return this._run.series(tasks);
     };
 
     /* Private Methods */
     /*******************/
     /* Run methods for async loading of modules and plugins */
     GUI.prototype._run = {
-
         /**
         * Run all modules one after another 
         *
         * @param args {array} - arguments list 
-        * @return void
+        * @return Promise
         **/
-        all: (args, fn, cb, force) => {
-            var a, tasks;
-
-            if (!args || args === null) {
-                args = [];
-            }
-
-            tasks = (() {
-                var j, len, results1;
-
-                results1 = [];
-
-                for (j = 0, len = args.length; j < len; j++) {
-                    a = args[j];
-
-                    results1.push(((a) {
-                        return (next) {
-                            return fn(a, next);
-                        };
-                    })(a));
-                }
-
-                return results1;
-
-            })();
-
-            return this.parallel(tasks, cb, force);
+        all: (args = []) => {
+            const tasks = args.map(a => () => Promise.resolve(a));
+            return this.parallel(tasks);
         },
 
         /**
         * Run asynchronous tasks in parallel 
         *
-        * @param args {array} - arguments list 
-        * @return void
+        * @param tasks {array} - array of functions that return promises
+        * @return Promise
         **/
-        parallel: (tasks, cb, force) => {
-            var count, errors, hasErr, i, j, len, results, paralleled, task;
-
-            if (!tasks || tasks === null) {
-
-                tasks = [];
-
-            } else if (!cb || cb === null) {
-
-                cb = (() { });
+        parallel: (tasks = []) => {
+            if (tasks.length === 0) {
+                return Promise.resolve([]);
             }
 
-            count = tasks.length;
-            results = [];
+            const promises = tasks.map((task, index) => {
+                try {
+                    const result = task();
+                    // Ensure it's a promise
+                    return Promise.resolve(result).catch(err => ({ error: err, index }));
+                } catch (err) {
+                    return Promise.resolve({ error: err, index });
+                }
+            });
 
-            if (count === 0) {
-                return cb(null, results);
-            }
-
-            errors = [];
-
-            hasErr = false;
-            paralleled = [];
-
-            for (i = j = 0, len = tasks.length; j < len; i = ++j) {
-                task = tasks[i];
-
-                paralleled.push(((t, idx) {
-                    var e, next;
-
-                    next = () {
-                        var err, res;
-
-                        err = arguments[0];
-                        res = (2 <= arguments.length) ? Utils.slice.call(arguments, 1) : [];
-
-                        if (err) {
-                            errors[idx] = err;
-                            hasErr = true;
-
-                            if (!force) {
-                                return cb(errors, results);
-                            }
+            return Promise.all(promises)
+                .then(results => {
+                    const errors = [];
+                    const validResults = [];
+                    
+                    results.forEach((result, index) => {
+                        if (result && result.error) {
+                            errors[index] = result.error;
                         } else {
-                            results[idx] = res.length < 2 ? res[0] : res;
+                            validResults[index] = result;
                         }
+                    });
 
-                        if (--count <= 0) {
-                            if (hasErr) {
-                                return cb(errors, results);
-                            } else {
-                                return cb(null, results);
-                            }
-                        }
-                    };
-
-                    try {
-
-                        return t(next);
-
-                    } catch (_error) {
-                        e = _error;
-                        return next(e);
+                    if (errors.some(err => err !== undefined)) {
+                        const error = new Error('Some tasks failed');
+                        error.errors = errors;
+                        error.results = validResults;
+                        throw error;
                     }
-                })(task, i));
-            }
 
-            return paralleled;
+                    return validResults;
+                });
         },
 
         /**
         * Run asynchronous tasks one after another 
         *
-        * @param args {array} - arguments list 
-        * @return void
+        * @param tasks {array} - array of functions that return promises
+        * @return Promise
         **/
-        series: (tasks, cb, force) => {
-            var count, errors, hasErr, i, next, results;
-
-            if (!tasks || tasks === null) {
-                tasks = [];
-            }
-            if (!cb || cb === null) {
-                cb = (() { });
+        series: (tasks = []) => {
+            if (tasks.length === 0) {
+                return Promise.resolve([]);
             }
 
-            i = -1;
-
-            count = tasks.length;
-            results = [];
-
-            if (count === 0) {
-                return cb(null, results);
-            }
-
-            errors = [];
-            hasErr = false;
-
-            next = () {
-                var e, err, res;
-
-                err = arguments[0];
-                res = (2 <= arguments.length) ? Utils.slice.call(arguments, 1) : [];
-
-                if (err) {
-                    errors[i] = err;
-                    hasErr = true;
-
-                    if (!force) {
-                        return cb(errors, results);
-                    }
-                } else {
-                    if (i > -1) {
-                        results[i] = res.length < 2 ? res[0] : res;
-                    }
-                }
-
-                if (++i >= count) {
-
-                    if (hasErr) {
-                        return cb(errors, results);
-                    } else {
-                        return cb(null, results);
-                    }
-                } else {
-
+            return tasks.reduce((promise, task, index) => {
+                return promise.then(results => {
                     try {
-                        return tasks[i](next);
-                    } catch (_error) {
-                        e = _error;
-                        return next(e);
+                        const result = task();
+                        return Promise.resolve(result)
+                            .then(taskResult => [...results, taskResult])
+                            .catch(err => {
+                                const error = new Error(`Task ${index} failed`);
+                                error.originalError = err;
+                                error.taskIndex = index;
+                                throw error;
+                            });
+                    } catch (err) {
+                        const error = new Error(`Task ${index} failed`);
+                        error.originalError = err;
+                        error.taskIndex = index;
+                        throw error;
                     }
-                }
-            };
-
-            return next();
+                });
+            }, Promise.resolve([]));
         },
 
         /**
-        * Run first task, which does not return an error 
+        * Run first task that succeeds
         *
-        * @param tasks {array} - tasks list 
-        * @param cb { } - callback method
-        * @param force {boolean} - optional force errors
-        * @return { } execute 
+        * @param tasks {array} - array of functions that return promises
+        * @return Promise
         **/
-        first: (tasks, cb, force) => {
-            var count, errors, i, next, result;
-
-            if (!tasks || tasks === null) {
-                tasks = [];
-            }
-            if (!cb || cb === null) {
-                cb = (() { });
+        first: (tasks = []) => {
+            if (tasks.length === 0) {
+                return Promise.reject(new Error('No tasks provided'));
             }
 
-            i = -1;
-
-            count = tasks.length;
-            result = null;
-
-            if (!count || count === 0) {
-                return cb(null);
-            }
-
-            errors = [];
-
-            next = () {
-                var e, err, res;
-
-                err = arguments[0];
-                res = (2 <= arguments.length) ? Utils.slice.call(arguments, 1) : [];
-
-                if (err) {
-                    errors[i] = err;
-
-                    if (!force) {
-                        return cb(errors);
-                    }
-                } else {
-
-                    if (i > -1) {
-
-                        return cb(null, res.length < 2 ? res[0] : res);
-                    }
-                }
-
-                if (++i >= count) {
-
-                    return cb(errors);
-
-                } else {
-
+            return tasks.reduce((promise, task, index) => {
+                return promise.catch(() => {
                     try {
-
-                        return tasks[i](next);
-
-                    } catch (_error) {
-
-                        e = _error;
-                        return next(e);
+                        return Promise.resolve(task());
+                    } catch (err) {
+                        if (index === tasks.length - 1) {
+                            throw err;
+                        }
+                        return Promise.reject(err);
                     }
-                }
-            };
-
-            return next();
+                });
+            }, Promise.reject());
         },
 
         /**
         * Run asynchronous tasks one after another
-        * and pass the argument
+        * and pass the result to the next task
         *
-        * @param args {array} - arguments list 
-        * @return void
+        * @param tasks {array} - array of functions that accept previous result and return promises
+        * @return Promise
         **/
-        waterfall: (tasks, cb) => {
-            let i = -1;
-
-            if (tasks.length === 0) return cb();
-
-            const next = () => {
-                const err = arguments[0];
-                const res = (2 <= arguments.length) ? Utils.slice.call(arguments, 1) : [];
-
-                if (err !== null) return cb(err);
-
-                if (++i >= tasks.length) {
-
-                    return cb.apply(null, [null].concat(Utils.slice.call(res)));
-                } else {
-
-                    return tasks[i].apply(tasks, Utils.slice.call(res).concat([next]));
-                }
-            };
-
-            return next();
-        }
-    };
-    /** 
-      * Called when starting module fails 
-      *
-      * @param ev {object} - message or error object 
-      * @param cb {function} - callback method to run with error string / object
-      * @return this {object}
-    **/
-    GUI.prototype._fail = (ev, cb) => {
-        this.debug.warn(ev);
-
-        cb(new Error("could not start module: " + ev.message));
-
-        return this;
-    };
-
-    /** 
-      * Called when starting module fails 
-      *
-      * @param mods {function} - method with array of all modules to start 
-      * @param cb {function} - callback method to run once modules started 
-      * @return this {object}
-    **/
-    GUI.prototype._startAll = (mods, cb) => {
-        // start all stored modules
-        if (!mods || mods === null) {
-            mods = (function () {
-                var results = [], m;
-
-                for (m in this._modules) {
-                    results.push(m);
-                }
-
-                return results;
-            }).call(this);
-        }
-
-        // self executing action
-        const startAction = (function (_this) {
-            return function (m, next) {
-                return _this.start(m, _this._modules[m].options, next);
-            };
-        })(this);
-
-        // optional done callback for async loading 
-        const done = function (err) {
-            var e, i, j, k, len, mdls, modErrors, x;
-
-            if ((err !== null ? err.length : void 0) > 0) {
-                modErrors = {};
-
-                for (i = j = 0, len = err.length; j < len; i = ++j) {
-                    x = err[i];
-
-                    if (x !== null) {
-                        modErrors[mods[i]] = x;
-                    }
-                }
-
-                // store all available modules errors
-                mdls = (function () {
-                    var results = [], k;
-
-                    for (k in modErrors) {
-                        results.push("'" + k + "'");
-                    }
-
-                    return results;
-                })();
-
-                e = new Error("errors occurred in the following modules: " + mdls);
-                e.moduleErrors = modErrors;
+        waterfall: (tasks = []) => {
+            if (tasks.length === 0) {
+                return Promise.resolve();
             }
 
-            return typeof cb === "function" ? cb(e) : void 0;
-        };
+            return tasks.reduce((promise, task) => {
+                return promise.then(result => {
+                    try {
+                        return Promise.resolve(task(result));
+                    } catch (err) {
+                        return Promise.reject(err);
+                    }
+                });
+            }, Promise.resolve());
+        }
+    };
 
-        // run all modules in parallel formation
-        this._run.all(mods, startAction, done, true);
+    /** 
+      * Called when starting all modules
+      *
+      * @param mods {array} - array of module IDs to start 
+      * @return Promise
+    **/
+    GUI.prototype._startAll = (mods) => {
+        // start all stored modules
+        if (!mods || mods === null) {
+            mods = Object.keys(this._modules);
+        }
 
-        return this;
+        const startTasks = mods.map(moduleId => () => 
+            this.start(moduleId, this._modules[moduleId].options)
+                .catch(err => {
+                    // Store error with module ID for reporting
+                    const moduleError = new Error(`Failed to start module '${moduleId}': ${err.message}`);
+                    moduleError.moduleId = moduleId;
+                    moduleError.originalError = err;
+                    throw moduleError;
+                })
+        );
+
+        return this._run.parallel(startTasks)
+            .catch(error => {
+                if (error.errors) {
+                    const moduleErrors = {};
+                    const failedModules = [];
+                    
+                    error.errors.forEach((err, index) => {
+                        if (err) {
+                            const moduleId = mods[index];
+                            moduleErrors[moduleId] = err;
+                            failedModules.push(`'${moduleId}'`);
+                        }
+                    });
+
+                    const aggregatedError = new Error(`errors occurred in the following modules: ${failedModules.join(', ')}`);
+                    aggregatedError.moduleErrors = moduleErrors;
+                    throw aggregatedError;
+                }
+                throw error;
+            });
     };
 
     /** 
@@ -763,17 +531,16 @@ export const GUI = (($) => {
       *
       * @param moduleId {string} - the module to create sandbox instance for 
       * @param o {object} - options object 
-      * @param cb {function} - callback method to run once instance created
-      * @return {function} - run sandboxed instances
+      * @return Promise - resolves with {instance, options}
     **/
-    GUI.prototype._createInstance = (moduleId, o, cb) => {
+    GUI.prototype._createInstance = (moduleId, o) => {
         const { options: opt } = o;
         const id = o.instanceId || moduleId;
         const module = this._modules[moduleId];
 
         // Return existing instance if it exists
         if (this._instances[id]) {
-            return cb(this._instances[id]);
+            return Promise.resolve({ instance: this._instances[id], options: opt });
         }
 
         // Merge options with module defaults (module options have lower priority)
@@ -791,28 +558,26 @@ export const GUI = (($) => {
         }
 
         // Run sandboxed instance load method
-        return this._runSandboxPlugins('load', sb, (err) => {
-            if (err) {
-                return cb(err);
-            }
+        return this._runSandboxPlugins('load', sb)
+            .then(() => {
+                const instance = new module.creator(sb);
 
-            const instance = new module.creator(sb);
-
-            // Check if module has required methods
-            if (typeof instance.load !== "function") {
-                // Check if it's a jQuery plugin
-                if (instance.fn && typeof instance.fn === 'function') {
-                    return this.plugin(instance, id);
+                // Check if module has required methods
+                if (typeof instance.load !== "function") {
+                    // Check if it's a jQuery plugin
+                    if (instance.fn && typeof instance.fn === 'function') {
+                        this.plugin(instance, id);
+                        return { instance, options: iOpts };
+                    }
+                    throw new Error("module has no 'load' or 'fn' method");
                 }
-                return cb(new Error("module has no 'load' or 'fn' method"));
-            }
 
-            // Store instance and sandbox
-            this._instances[id] = instance;
-            this._sandboxes[id] = sb;
+                // Store instance and sandbox
+                this._instances[id] = instance;
+                this._sandboxes[id] = sb;
 
-            return cb(null, instance, iOpts);
-        });
+                return { instance, options: iOpts };
+            });
     };
 
     /** 
@@ -820,29 +585,44 @@ export const GUI = (($) => {
       *
       * @param ev {string} - check module for load / unload methods 
       * @param sb {object} - the sandbox instance 
-      * @param cb {function} - callback method to run once instances initialized
-      * @return {function} - GUI._run.seris
+      * @return Promise
     **/
-    GUI.prototype._runSandboxPlugins = (ev, sb, cb) => {
+    GUI.prototype._runSandboxPlugins = (ev, sb) => {
         // Filter plugins that have the specified event handler
         const tasks = this._plugins
             .filter(plugin => typeof plugin.plugin?.[ev] === "function")
-            .map(plugin => {
+            .map(plugin => () => {
                 const eventHandler = plugin.plugin[ev];
-
-                return (next) => {
-                    // Check if the handler expects a callback (3 parameters: sb, options, next)
-                    if (Utils.hasArgs(eventHandler, 3)) {
-                        return eventHandler(sb, plugin.options, next);
-                    } else {
-                        // Handler doesn't use callback, call it synchronously
-                        eventHandler(sb, plugin.options);
-                        return next();
+                
+                return new Promise((resolve, reject) => {
+                    try {
+                        // Check if the handler expects a callback (3 parameters: sb, options, next)
+                        if (Utils.hasArgs(eventHandler, 3)) {
+                            eventHandler(sb, plugin.options, (err) => {
+                                if (err) {
+                                    reject(err);
+                                } else {
+                                    resolve();
+                                }
+                            });
+                        } else {
+                            // Handler doesn't use callback, call it synchronously
+                            const result = eventHandler(sb, plugin.options);
+                            
+                            // If handler returns a promise, use it
+                            if (result && typeof result.then === 'function') {
+                                result.then(resolve, reject);
+                            } else {
+                                resolve();
+                            }
+                        }
+                    } catch (err) {
+                        reject(err);
                     }
-                };
+                });
             });
 
-        return this._run.series(tasks, cb, true);
+        return this._run.series(tasks);
     };
 
     return GUI;

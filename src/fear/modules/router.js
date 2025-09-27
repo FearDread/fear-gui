@@ -1,4 +1,4 @@
-$.FEAR().use((GUI) => {
+export const Router = ((FEAR) => {
   'use strict';
 
   /**
@@ -276,18 +276,18 @@ $.FEAR().use((GUI) => {
   };
 
   return {
-    load: (sandbox) => {
+    load: (GUI) => {
     // Ensure net namespace exists
-    if (!sandbox.Router) {
-      sandbox.Router = new Router();
+    if (!GUI.Router) {
+      GUI.Router = new Router();
     }
   },
-    unload: (sandbox) => {
-    if (sandbox.Router) {
+    unload: (GUI) => {
+    if (GUI.Router) {
       // Clean up router
-      sandbox.Router.flush();
-      delete sandbox.Router;
+      GUI.Router.flush();
+      delete GUI.Router;
     }
   }
   };
-});
+})();

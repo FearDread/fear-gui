@@ -2,9 +2,8 @@ import Event from "./events";
 import Router from "./router";
 
 
-$.FEAR().use((gui) => {
-    return { load: sandbox => sandbox.event = new Event() }
-})
-$.FEAR().use((gui) => {
-    return { load: sandbox => sandbox.Router = new Router() };
-})
+export { default as Events } from "./events";
+
+export { default as Cellar } from "./cellar";
+
+export { default as Router } from "./router";

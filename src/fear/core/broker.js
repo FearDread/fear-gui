@@ -3,206 +3,200 @@ import utils from "./utils";
 export const Broker = (() => {
 
     function Broker(obj, cascade) {
-
         this.cascade = (cascade) ? true : false;
         this.channels = {};
 
         if (utils.isObj(obj)) {
             this.install(obj);
-
         } else if (obj === true) {
             this.cascade = true;
         }
     }
 
+    /**
+     * Bind function to specific context
+     * @param {Function} fn - function to bind
+     * @param {Object} me - context to bind to
+     * @return {Function} - bound function
+     */
     Broker.prototype.bind = (fn, me) => {
-        return () => {
-            return fn.apply(me, arguments);
+        return (...args) => {
+            return fn.apply(me, args);
         };
     };
 
-    Broker.prototype.add = (channel, fn, context) => {
-        let subscription;
+    /**
+     * Add subscription to a channel
+     * @param {String} channel - channel name
+     * @param {Function} fn - callback function
+     * @param {Object} context - execution context
+     * @return {Object} - subscription object with listen/ignore methods
+     */
+    Broker.prototype.add = function(channel, fn, context) {
         const _this = this;
 
-
         if (!context || context === null) context = this;
-
         if (!this.channels[channel]) this.channels[channel] = [];
         
-        subscription = {
+        const subscription = {
             event: channel,
             context: context,
             callback: fn || function(){}
         };
       
         return {
-            listen: () => {
+            listen() {
                 _this.channels[channel].push(subscription);
                 return this;
             },
-            ignore: () => {
-                _this.remove(channel);
+            ignore() {
+                _this.remove(channel, fn, context);
                 return this;
             }
         }.listen();
     };
 
-    Broker.prototype.remove = (channel, cb) => {
-        let id;
-
+    /**
+     * Remove subscriptions from channels
+     * @param {String|Function|Object} channel - channel name, callback function, or context object
+     * @param {Function} cb - optional callback to remove
+     * @param {Object} context - optional context to remove
+     * @return {Broker} - this broker instance
+     */
+    Broker.prototype.remove = function(channel, cb, context) {
         switch (typeof channel) {
-
             case "string":
                 if (typeof cb === "function") {
-                    Broker._delete(this, ch, cb);
-                }
-
-                if (typeof cb === "undefined") {
-                    Broker._delete(this, ch);
+                    Broker._delete(this, channel, cb, context);
+                } else if (typeof cb === "undefined") {
+                    Broker._delete(this, channel);
                 }
                 break;
 
             case "function":
-                for (id in this.channels) {
-                    Broker._delete(this, id, ch);
+                for (const id in this.channels) {
+                    Broker._delete(this, id, channel);
                 }
                 break;
 
             case "undefined":
-                for (id in this.channels) {
+                for (const id in this.channels) {
                     Broker._delete(this, id);
                 }
                 break;
 
             case "object":
-                for (id in this.channels) {
-                    Broker._delete(this, id, null, ch);
+                for (const id in this.channels) {
+                    Broker._delete(this, id, null, channel);
                 }
         }
 
         return this;
     };
 
-    Broker.prototype.fire = (channel, data, cb) => {
-        let tasks;
-
-        if (!cb || cb === null) cb = function() {};
-        if (typeof channel !== "string") return false;
-        if (typeof data === "function") {
-            cb = data;
-            data = void 0;
+    /**
+     * Fire event on channel (first successful handler wins)
+     * @param {String} channel - channel name
+     * @param {*} data - data to pass to handlers
+     * @return {Promise} - resolves with first successful result
+     */
+    Broker.prototype.fire = function(channel, data) {
+        if (typeof channel !== "string") {
+            return Promise.reject(new Error("Channel must be a string"));
         }
 
-        tasks = this._setup(data, channel, channel, this);
+        if (typeof data === "function") {
+            data = undefined;
+        }
 
-        utils.run.first(tasks, (function(errors, result) {
-            var e, x;
+        const tasks = this._setup(data, channel, channel, this);
 
-            if (errors) {
+        if (tasks.length === 0) {
+            return Promise.resolve(null);
+        }
 
-                e = new Error(((function() {
-                    var i, len, results1;
-
-                    results1 = [];
-
-                    for (i = 0, len = errors.length; i < len; i++) {
-                        x = errors[i];
-
-                        if (x !== null) {
-                            results1.push(x.message);
-                        }
-                    }
-
-                    return results1;
-
-                })()).join('; '));
-
-                return cb(e);
-
-            } else {
-
-                return cb(null, result);
-            }
-        }), true);
-
-        return this;
+        return utils.run.first(tasks)
+            .catch(errors => {
+                if (Array.isArray(errors)) {
+                    const errorMessages = errors
+                        .filter(x => x !== null && x !== undefined)
+                        .map(x => x.message || String(x));
+                    
+                    const error = new Error(errorMessages.join('; '));
+                    error.originalErrors = errors;
+                    throw error;
+                }
+                throw errors;
+            });
     };
         
-    Broker.prototype.emit = (channel, data, cb, origin) => {
-        var o, e, x, chnls;
-
-        if (!cb || cb === null) {
-            cb = (function() {});
-        }
-
+    /**
+     * Emit event on channel (all handlers execute in series)
+     * @param {String} channel - channel name
+     * @param {*} data - data to pass to handlers
+     * @param {String} origin - optional origin channel for cascade
+     * @return {Promise} - resolves when all handlers complete
+     */
+    Broker.prototype.emit = function(channel, data, origin) {
         if (!origin || origin === null) {
             origin = channel;
         }
 
         if (data && utils.isFunc(data)) {
-            cb = data;
+            data = undefined;
         }
-
-        data = void 0;
 
         if (typeof channel !== "string") {
-            return false;
+            return Promise.reject(new Error("Channel must be a string"));
         }
 
-        tasks = this._setup(data, channel, origin, this);
+        const tasks = this._setup(data, channel, origin, this);
 
-        utils.run.series(tasks, (function(errors, series) {
-            if (errors) {
+        const emitPromise = utils.run.series(tasks)
+            .catch(errors => {
+                if (Array.isArray(errors)) {
+                    const errorMessages = errors
+                        .filter(x => x !== null && x !== undefined)
+                        .map(x => x.message || String(x));
+                    
+                    const error = new Error(errorMessages.join('; '));
+                    error.originalErrors = errors;
+                    throw error;
+                }
+                throw errors;
+            });
 
-                e = new Error(((function() {
-                    var i, len, results;
-
-                    results = [];
-
-                    for (i = 0, len = errors.length; i < len; i++) {
-                        x = errors[i];
-
-                        if (x !== null) {
-                            results.push(x.message);
-                        }
-                    }
-
-                    return results;
-
-                })()).join('; '));
-
-                return e;
+        // Handle cascading
+        if (this.cascade) {
+            const channels = channel.split('/');
+            if (channels.length > 1) {
+                const parentChannel = channels.slice(0, -1).join('/');
+                const originToUse = this.fireOrigin ? origin : parentChannel;
+                
+                return emitPromise.then(result => {
+                    return this.emit(parentChannel, data, originToUse)
+                        .then(() => result);
+                });
             }
-        }, cb(e)), true);
-
-        if (this.cascade && (chnls = channel.split('/')).length > 1) {
-
-            if (this.fireOrigin) {
-                o = origin;
-            }
-
-            this.fire(chnls.slice(0, -1).join('/'), data, cb, o);
         }
 
-        return this;
+        return emitPromise;
     };
 
-    Broker.prototype.install = (obj, forced) => {
-        var key, value;
-
+    /**
+     * Install broker methods on target object
+     * @param {Object} obj - target object
+     * @param {Boolean} forced - whether to override existing properties
+     * @return {Broker} - this broker instance
+     */
+    Broker.prototype.install = function(obj, forced) {
         if (utils.isObj(obj)) {
-
-            for (key in this) {
-
-                value = this[key];
-
-                if (forced) {
-                    obj[key] = value;
-                } else {
-
-                    if (!obj[key]) {
-                        obj[key] = value;
+            for (const key in this) {
+                const value = this[key];
+                
+                if (typeof value === 'function') {
+                    if (forced || !obj[key]) {
+                        obj[key] = value.bind(this);
                     }
                 }
             }
@@ -211,79 +205,88 @@ export const Broker = (() => {
         return this;
     };
 
-    Broker.prototype._delete = (obj, channel, cb, context) => {
-        var s;
-
-        if (obj.channels[channel] === null) {
-
-            obj.channels[channel] = (function() {
-                var i, len, ref, results;
-
-                ref = obj.channels[ch];
-                results = [];
-
-                for (i = 0, len = ref.length; i < len; i++) {
-                    s = ref[i];
-
-                    if ((typeof cb !== "undefined" && cb !== null ? s.callback !== cb : typeof context !== "undefined" && context !== null ? s.context !== context : s.context !== obj)) {
-
-                        results.push(s);
-                    }
-                }
-
-                return results;
-
-            })();
-
-            return obj.channels[channel];
+    /**
+     * Remove specific subscriptions from a channel
+     * @param {Object} obj - broker instance
+     * @param {String} channel - channel name
+     * @param {Function} cb - callback to remove
+     * @param {Object} context - context to remove
+     * @return {Array} - remaining subscriptions
+     */
+    Broker._delete = function(obj, channel, cb, context) {
+        if (!obj.channels[channel]) {
+            return [];
         }
+
+        obj.channels[channel] = obj.channels[channel].filter(subscription => {
+            // Keep subscription if none of the removal criteria match
+            if (cb && subscription.callback === cb) return false;
+            if (context && subscription.context === context) return false;
+            if (!cb && !context && subscription.context === obj) return false;
+            return true;
+        });
+
+        return obj.channels[channel];
     };
 
-    Broker.prototype._setup = (data, channel, origin, context) => {
-        var i = 0, len, results = [], sub, subscribers;
-
-        subscribers = context.channels[channel] || [];
-        len = subscribers.length;
-
-        do {
-            sub = subscribers[i];
-
-            results.push((function(sub) {
-
-                return function(next) {
-                    var e;
-
+    /**
+     * Setup tasks for event execution
+     * @param {*} data - data to pass to handlers
+     * @param {String} channel - channel name
+     * @param {String} origin - origin channel
+     * @param {Object} context - broker context
+     * @return {Array} - array of task functions
+     */
+    Broker.prototype._setup = function(data, channel, origin, context) {
+        const subscribers = context.channels[channel] || [];
+        
+        return subscribers.map(sub => {
+            return () => {
+                return new Promise((resolve, reject) => {
                     try {
-
+                        // Check if callback expects a callback parameter (async style)
                         if (utils.hasArgs(sub.callback, 3)) {
-
-                            return sub.callback.apply(sub.context, [data, origin, next]);
-
+                            sub.callback.call(sub.context, data, origin, (err, result) => {
+                                if (err) {
+                                    reject(err);
+                                } else {
+                                    resolve(result);
+                                }
+                            });
                         } else {
-
-                            return next(null, sub.callback.apply(sub.context, [data, origin]));
+                            // Synchronous callback or returns a promise
+                            const result = sub.callback.call(sub.context, data, origin);
+                            
+                            // If result is a promise, use it directly
+                            if (result && typeof result.then === 'function') {
+                                result.then(resolve, reject);
+                            } else {
+                                resolve(result);
+                            }
                         }
-                    } catch (_error) {
-                        e = _error;
-
-                        return next(e);
+                    } catch (error) {
+                        reject(error);
                     }
-                };
-            })(sub));
-
-            i++;
-        } while(--len);
-
-        return results;
+                });
+            };
+        });
     };
 
-    Broker.prototype.pipe = (src, target, broker) => {
+    /**
+     * Pipe events from one channel to another
+     * @param {String} src - source channel
+     * @param {String} target - target channel
+     * @param {Broker} broker - broker to pipe to (defaults to this)
+     * @return {Broker} - this broker instance
+     */
+    Broker.prototype.pipe = function(src, target, broker) {
+        // Handle parameter variations
         if (target instanceof Broker) {
-            mediator = target;
+            broker = target;
             target = src;
         }
 
-        if (broker === null) {
+        if (!broker) {
             return this.pipe(src, target, this);
         }
 
@@ -291,14 +294,119 @@ export const Broker = (() => {
             return this;
         }
 
-        this.add(src, function() {
-
-            return broker.fire.apply(broker, [target].concat(slice.call(arguments)));
+        this.add(src, (...args) => {
+            return broker.fire(target, ...args);
         });
 
         return this;
     };
 
+    /**
+     * Create a channel that only fires once
+     * @param {String} channel - channel name
+     * @param {Function} fn - callback function
+     * @param {Object} context - execution context
+     * @return {Object} - subscription object
+     */
+    Broker.prototype.once = function(channel, fn, context) {
+        const _this = this;
+        let fired = false;
+
+        const onceWrapper = function(...args) {
+            if (!fired) {
+                fired = true;
+                _this.remove(channel, onceWrapper);
+                return fn.apply(this, args);
+            }
+        };
+
+        return this.add(channel, onceWrapper, context);
+    };
+
+    /**
+     * Wait for an event to be fired
+     * @param {String} channel - channel name
+     * @param {Number} timeout - optional timeout in milliseconds
+     * @return {Promise} - resolves when event fires or rejects on timeout
+     */
+    Broker.prototype.waitFor = function(channel, timeout) {
+        return new Promise((resolve, reject) => {
+            let timeoutId;
+
+            const cleanup = () => {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+            };
+
+            // Set up timeout if specified
+            if (timeout && timeout > 0) {
+                timeoutId = setTimeout(() => {
+                    this.remove(channel, handler);
+                    reject(new Error(`Timeout waiting for event '${channel}' after ${timeout}ms`));
+                }, timeout);
+            }
+
+            // Set up event handler
+            const handler = (data, origin) => {
+                cleanup();
+                this.remove(channel, handler);
+                resolve({ data, origin, channel });
+            };
+
+            this.add(channel, handler);
+        });
+    };
+
+    /**
+     * Get all active channels
+     * @return {Array} - array of channel names
+     */
+    Broker.prototype.getChannels = function() {
+        return Object.keys(this.channels).filter(channel => 
+            this.channels[channel] && this.channels[channel].length > 0
+        );
+    };
+
+    /**
+     * Get subscriber count for a channel
+     * @param {String} channel - channel name
+     * @return {Number} - number of subscribers
+     */
+    Broker.prototype.getSubscriberCount = function(channel) {
+        return this.channels[channel] ? this.channels[channel].length : 0;
+    };
+
+    /**
+     * Clear all subscriptions from all channels
+     * @return {Broker} - this broker instance
+     */
+    Broker.prototype.clear = function() {
+        this.channels = {};
+        return this;
+    };
+
+    /**
+     * Create a namespaced broker that prefixes all channel names
+     * @param {String} namespace - namespace prefix
+     * @return {Object} - namespaced broker interface
+     */
+    Broker.prototype.namespace = function(namespace) {
+        const _this = this;
+        const separator = '/';
+
+        return {
+            add: (channel, fn, context) => _this.add(namespace + separator + channel, fn, context),
+            remove: (channel, cb, context) => _this.remove(namespace + separator + channel, cb, context),
+            fire: (channel, data) => _this.fire(namespace + separator + channel, data),
+            emit: (channel, data, origin) => _this.emit(namespace + separator + channel, data, origin),
+            once: (channel, fn, context) => _this.once(namespace + separator + channel, fn, context),
+            waitFor: (channel, timeout) => _this.waitFor(namespace + separator + channel, timeout),
+            pipe: (src, target, broker) => _this.pipe(namespace + separator + src, namespace + separator + target, broker),
+            getSubscriberCount: (channel) => _this.getSubscriberCount(namespace + separator + channel)
+        };
+    };
+
     return Broker;
 
-})(this);
+})();s

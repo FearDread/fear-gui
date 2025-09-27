@@ -1,7 +1,7 @@
-import FEAR from "./gui.js";
-import Utils from "./utils.js";
+import FEAR from "./core/gui.js";
+import Utils from "./core/utils.js";
 
-(function($) {
+;(function($) {
   'use strict';
   
   var $GUI = new FEAR();
@@ -41,5 +41,3 @@ import Utils from "./utils.js";
   typeof $ !== 'undefined' ? $ : 
   (function() { throw new Error('jQuery is required'); })(),
 );
-
-export { default as FEAR } from "./gui.js";
