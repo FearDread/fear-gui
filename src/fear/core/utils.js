@@ -7,7 +7,7 @@ export const Utils = {
     /* Argument Regex */
     argRgx: /([^\s,]+)/g,
 
-    each:   (obj, iterator, context) {
+    each:   (obj, iterator, context) => {
         var key, length, isPrimitive;
 
         if (obj) {
@@ -81,9 +81,9 @@ export const Utils = {
             } 
         }
 
-          ctor() { 
+          function ctor() { 
             this.constructor = child; 
-        }
+            }
 
         ctor.prototype = parent.prototype;
 
@@ -257,9 +257,9 @@ export const Utils = {
         if (!$el.height) {
             $el = $($el);
         }
-        $(  () {
+        $(() => {
 
-            $(window).resize(  () {
+            $(window).resize(  () => {
 
                 $el.height($(window).height());
 

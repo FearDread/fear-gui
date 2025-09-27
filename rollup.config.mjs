@@ -5,7 +5,7 @@ import json from "@rollup/plugin-json";
 import peerDepsExternal from 'rollup-plugin-peer-deps-external';
 
 const jsconfig = [{
-		input: ['src/core/index.js','src/modules/index.js', 'src/plugins/index.js'],
+		input: ['src/fear/core/index.js','src/fear/modules/index.js'],
 		output: [
 			{
 				file: 'dist/fear.gui.js',
