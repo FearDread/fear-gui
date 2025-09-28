@@ -7,7 +7,7 @@ export const Utils = {
     /* Argument Regex */
     argRgx: /([^\s,]+)/g,
 
-    each:   (obj, iterator, context) => {
+    each: (obj, iterator, context) => {
         var key, length, isPrimitive;
 
         if (obj) {
@@ -253,13 +253,13 @@ export const Utils = {
     * @param $el {object} - jQuery wrapped element to resize 
     * @return void
     **/
-    resize:  ($el) => {
+    resize: ($el) => {
         if (!$el.height) {
             $el = $($el);
         }
         $(() => {
 
-            $(window).resize(  () => {
+            $(window).resize(() => {
 
                 $el.height($(window).height());
 
@@ -275,7 +275,7 @@ export const Utils = {
     * @param event title - of title to turn to string for insertion into URI
     * @return void
     **/
-    slugify:  (text) => {
+    slugify: (text) => {
         return text.toString().toLowerCase()
             .replace(/\s+/g, '-')           // Replace spaces with -
             .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
@@ -290,7 +290,7 @@ export const Utils = {
     * @param data {various} - the array / object to clone (copy) 
     * @return copy {various} - the new array / object 
     **/
-    clone:  (data) => {
+    clone: (data) => {
         var copy, k, v;
 
         if (data instanceof Array) {
@@ -326,7 +326,7 @@ export const Utils = {
     *
     * @return {number} - computed em value 
     **/
-    convertToEm: (value) => {
+    convertToEm:(value) => {
         return value * this.getFontsize();
     },
 
@@ -335,7 +335,7 @@ export const Utils = {
     *
     * @return {number} - computed point value 
     **/
-    convertToPt: (value) => {
+    convertToPt:(value) => {
     
     },
 
@@ -344,7 +344,7 @@ export const Utils = {
     *
     * @return base {number} - computed fontsize
     **/
-    convertBase: () => {
+    convertBase:() => {
         var pixels, 
             elem = document.createElement(), 
             style = elem.getAttribute('style');
@@ -366,7 +366,7 @@ export const Utils = {
     * @param override {boolean} - optional arg to replace existing property keys
     * @return results {array} - new array of mixed object properties and values 
     **/
-    mix: (giv, rec, override) => {
+    mix:(giv, rec, override) => {
         var k, results, mixins, v;
 
         if (override === true) {
@@ -402,7 +402,7 @@ export const Utils = {
     * @param override {boolean} - override property names with new values
     * @return { } - mix 
     **/
-    mixin: (input, output, override) => {
+    mixin: function(input, output, override) {
         if (!override || override === null) {
             override = false;
         }
