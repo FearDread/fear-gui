@@ -291,3 +291,5 @@ export const Router = ((FEAR) => {
   }
   };
 })();
+
+export default Router;

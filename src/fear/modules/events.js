@@ -522,3 +522,5 @@ export const Events = ((FEAR) => {
         }
     }
 })();
+
+export default Events;

@@ -1,6 +1,6 @@
-import Utils from "./utils";
-import Broker from "./broker";
-import SandBox from "./sandbox";
+import { Utils } from "./utils";
+import { Broker } from "./broker";
+import { SandBox } from "./sandbox";
 
 export const FEAR = (($) => {
 
@@ -628,3 +628,5 @@ export const FEAR = (($) => {
     return GUI;
 
 })(jQuery);
+
+export default GUI = FEAR;

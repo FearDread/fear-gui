@@ -1,6 +1,6 @@
-import Utils from "./utils";
+import { Utils } from "./utils";
 
-export const SandBox = () => {
+export const SandBox = (() => {
 
     // API Globals
     const DELIM = '__';
@@ -407,4 +407,6 @@ export const SandBox = () => {
             return sandbox;
         }
     };
-};
+})();
+
+export default Sandbox;

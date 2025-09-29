@@ -1,12 +1,12 @@
-import { FEAR } from './gui';
-import { StoragePlugin } from './storage';
-import { EventPlugin } from './event';
+import { FEAR } from '../core/gui';
+import { Cellar } from '../modules/cellar';
+import { Events } from '../modules/events';
 
 // Initialize GUI framework
 const FEAR = new FEAR();
 
 // Core App Module
-FEAR.create('FearCore', function(GUI) {
+FEAR.create('FearCore', (GUI) => {
     
     const createPreloader = () => {
         return {
@@ -137,7 +137,7 @@ FEAR.create('FearCore', function(GUI) {
     };
 
     return {
-        load: function(options) {
+        load: (sb) => {
             const preloader = createPreloader();
             const modalManager = createModalManager();
             const mobileMenu = createMobileMenu();
@@ -147,12 +147,12 @@ FEAR.create('FearCore', function(GUI) {
                 .then(() => mobileMenu.init())
                 .then(() => {
                     // Store components in GUI for other modules
-                    GUI.preloader = preloader;
-                    GUI.modal = modalManager;
-                    GUI.mobileMenu = mobileMenu;
+                    sb.preloader = preloader;
+                    sb.modal = modalManager;
+                    sb.mobileMenu = mobileMenu;
                 })
                 .catch(err => {
-                    GUI.warn('FearCore load failed:', err);
+                    sb.warn('FearCore load failed:', err);
                 });
         }
     };
@@ -245,7 +245,7 @@ FEAR.create('FearRouter', function(GUI) {
              * @param {object} source - route data
              * @return {Promise<boolean>} resolves when rendered
              */
-            render: function(source) {
+            render: (source) => {
                 return new Promise((resolve) => {
                     const $container = GUI.$('.fear_container');
                     
@@ -271,13 +271,12 @@ FEAR.create('FearRouter', function(GUI) {
     };
 
     return {
-        load: function(options) {
+        load: (sb) => {
             const router = createRouter();
             
-            return router.init()
-                .then(() => {
-                    GUI.router = router;
-                })
+            return router
+                .init()
+                .then(() => { GUI.FearRouter = router;})
                 .catch(err => {
                     GUI.warn('FearRouter load failed:', err);
                     throw err;
@@ -287,7 +286,7 @@ FEAR.create('FearRouter', function(GUI) {
 });
 
 // Methods Module
-FEAR.create('FearMethods', function(GUI) {
+FEAR.create('FearMethods', (GUI) => {
     
     const createMethodsManager = () => {
         return {
@@ -502,7 +501,7 @@ FEAR.create('FearMethods', function(GUI) {
 });
 
 // Navigation Module
-FEAR.create('FearNavigation', function(GUI) {
+FEAR.create('FearNavigation', (GUI) => {
     
     return {
         load: function(options) {
@@ -541,8 +540,8 @@ const initFearApp = () => {
     });
 
     // Load plugins
-    FEAR.use(StoragePlugin);
-    FEAR.use(EventPlugin);
+    FEAR.use(Cellar);
+    FEAR.use(Events);
 
     // Start modules
     return FEAR.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation'])

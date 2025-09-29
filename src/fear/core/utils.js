@@ -295,7 +295,7 @@ export const Utils = {
 
         if (data instanceof Array) {
 
-            copy = ( () {
+            copy = ( () => {
                 var i, len, results;
 
                 results = [];
@@ -442,3 +442,5 @@ export const Utils = {
         return id.substr(0, length);
     }
 };
+
+export default Utils;

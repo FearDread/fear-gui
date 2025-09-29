@@ -560,3 +560,5 @@ export const Cellar = ((FEAR) => {
         }
     };
 })();
+
+export default Cellar;

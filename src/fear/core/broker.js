@@ -1,4 +1,4 @@
-import utils from "./utils";
+import { Utils } from "./utils";
 
 export const Broker = (() => {
 
@@ -6,7 +6,7 @@ export const Broker = (() => {
         this.cascade = (cascade) ? true : false;
         this.channels = {};
 
-        if (utils.isObj(obj)) {
+        if (Utils.isObj(obj)) {
             this.install(obj);
         } else if (obj === true) {
             this.cascade = true;
@@ -115,7 +115,7 @@ export const Broker = (() => {
             return Promise.resolve(null);
         }
 
-        return utils.run.first(tasks)
+        return Utils.run.first(tasks)
             .catch(errors => {
                 if (Array.isArray(errors)) {
                     const errorMessages = errors
@@ -142,7 +142,7 @@ export const Broker = (() => {
             origin = channel;
         }
 
-        if (data && utils.isFunc(data)) {
+        if (data && Utils.isFunc(data)) {
             data = undefined;
         }
 
@@ -152,7 +152,7 @@ export const Broker = (() => {
 
         const tasks = this._setup(data, channel, origin, this);
 
-        const emitPromise = utils.run.series(tasks)
+        const emitPromise = Utils.run.series(tasks)
             .catch(errors => {
                 if (Array.isArray(errors)) {
                     const errorMessages = errors
@@ -190,7 +190,7 @@ export const Broker = (() => {
      * @return {Broker} - this broker instance
      */
     Broker.prototype.install = function(obj, forced) {
-        if (utils.isObj(obj)) {
+        if (Utils.isObj(obj)) {
             for (const key in this) {
                 const value = this[key];
                 
@@ -245,7 +245,7 @@ export const Broker = (() => {
                 return new Promise((resolve, reject) => {
                     try {
                         // Check if callback expects a callback parameter (async style)
-                        if (utils.hasArgs(sub.callback, 3)) {
+                        if (Utils.hasArgs(sub.callback, 3)) {
                             sub.callback.call(sub.context, data, origin, (err, result) => {
                                 if (err) {
                                     reject(err);
@@ -409,4 +409,6 @@ export const Broker = (() => {
 
     return Broker;
 
-})();s
+})();
+
+export default Broker;

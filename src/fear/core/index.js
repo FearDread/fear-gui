@@ -1,5 +1,5 @@
-import FEAR from "./gui.js";
-import Utils from "./utils.js";
+import { FEAR } from "./gui.js";
+import { Utils } from "./utils.js";
 
 (function($) {
   'use strict';
