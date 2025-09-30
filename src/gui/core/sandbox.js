@@ -1,8 +1,7 @@
 import { Utils } from "./utils";
 
 export const SandBox = (() => {
-
-    // API Globals
+s
     const DELIM = '__';
 
     return {
@@ -409,4 +408,4 @@ export const SandBox = (() => {
     };
 })();
 
-export default Sandbox;
+export default SandBox;

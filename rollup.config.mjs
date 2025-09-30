@@ -3,7 +3,12 @@ import babel from '@rollup/plugin-babel';
 
 export default {
   input: 'src/jquery.fear.bundle.js',
-  output: {
+  output: [
+      {
+      file: 'dist/jquery.fear.js', // Non-minimized (development)
+      format: 'esm'
+  },
+  {
     file: 'dist/jquery.fear.min.js',
     format: 'umd',
     name: 'FEAR',
@@ -11,6 +16,7 @@ export default {
       jquery: '$'
     }
   },
+],
   external: ['jquery'],
   plugins: [
     babel({

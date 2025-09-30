@@ -1,37 +1,42 @@
 
-  // Module Registry
-  const ModuleRegistry = (() => {
-    const modules = new Map();
-    let globalOptions = {};
+// Module Registry
+const Registry = (() => {
+  const _this = this;
+  
+  function Registry(options = {}) {
+    this.modules = new Map();
+    this.globalOptions = {} || options;
 
-    const register = (name, instance) => {
-      modules.set(name, instance);
-      CoreUtils.log(`Module registered: ${name}`, 'log', 'Registry');
-      EventSystem.emit('module:registered', { name, instance });
-    };
+    return this;
+  }
 
-    const unregister = name => {
-      if (modules.has(name)) {
-        const module = modules.get(name);
+  Registry.prototyp = {
+    register: (name, instance) => {
+      this.modules.set(name, instance);
+      
+      Utils.log(`Module registered: ${name}`, 'log', 'Registry');
+      Events.emit('module:registered', { name, instance });
+    },
+    unregister: (name) => {
+      if (this.modules.has(name)) {
+        
+        const module = this.modules.get(name);
         if (module.destroy) module.destroy();
-        modules.delete(name);
-        CoreUtils.log(`Module unregistered: ${name}`, 'log', 'Registry');
-        EventSystem.emit('module:unregistered', { name });
+        
+        this.modules.delete(name);
+        
+        Utils.log(`Module unregistered: ${name}`, 'log', 'Registry');
+        Events.emit('module:unregistered', { name });
       }
-    };
+    },
+    get: name => this.modules.get(name),
+    has: name => this.modules.has(name),
+    list: () => Array.from(this.modules.keys()),
+    clear: () => modules.forEach((_, name) => _this.unregister(name)),
+    setGlobal: options => this.globalOptions = options,
+    getGlobal: () => this.globalOptions
+  }
 
-    const get = name => modules.get(name);
-    const has = name => modules.has(name);
-    const list = () => Array.from(modules.keys());
-    const clear = () => {
-      modules.forEach((_, name) => unregister(name));
-    };
 
-    const setGlobalOptions = options => globalOptions = options;
-    const getGlobalOptions = () => globalOptions;
-
-    return {
-      register, unregister, get, has, list, clear,
-      setGlobalOptions, getGlobalOptions
-    };
-  })();
+  return Registry;
+})();

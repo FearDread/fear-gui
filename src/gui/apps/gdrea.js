@@ -1,12 +1,5 @@
-import { FEAR } from '../core/gui';
-import { Cellar } from '../modules/cellar';
-import { Events } from '../modules/events';
-
-// Initialize GUI framework
-const FEAR = new FEAR();
-
 // Core App Module
-FEAR.create('FearCore', (GUI) => {
+$.FEAR.create('FearCore', (GUI) => {
     
     const createPreloader = () => {
         return {
@@ -159,7 +152,7 @@ FEAR.create('FearCore', (GUI) => {
 });
 
 // Router Module
-FEAR.create('FearRouter', function(GUI) {
+$.FEAR.create('FearRouter', (GUI) => {
     
     const createRouter = () => {
         const routes = {
@@ -286,7 +279,7 @@ FEAR.create('FearRouter', function(GUI) {
 });
 
 // Methods Module
-FEAR.create('FearMethods', (GUI) => {
+$.FEAR.create('FearMethods', (GUI) => {
     
     const createMethodsManager = () => {
         return {
@@ -501,7 +494,7 @@ FEAR.create('FearMethods', (GUI) => {
 });
 
 // Navigation Module
-FEAR.create('FearNavigation', (GUI) => {
+$.FEAR.create('FearNavigation', (GUI) => {
     
     return {
         load: function(options) {
@@ -533,18 +526,13 @@ FEAR.create('FearNavigation', (GUI) => {
 // Main App Initialization
 const initFearApp = () => {
     // Configure GUI
-    FEAR.configure({
+    $.FEAR.configure({
         logLevel: 1,
         mode: 'single',
         animations: true
     });
-
-    // Load plugins
-    FEAR.use(Cellar);
-    FEAR.use(Events);
-
     // Start modules
-    return FEAR.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation'])
+    return $.FEAR.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation'])
         .then(() => {
             console.log('FEAR SPA INITIALIZED');
             return FEAR;
@@ -554,9 +542,6 @@ const initFearApp = () => {
             throw error;
         });
 };
-
-// Export and auto-initialize
-export { FEAR as FearGUI, initFearApp };
 
 // Auto-initialize when DOM is ready
 if (typeof window !== 'undefined') {
