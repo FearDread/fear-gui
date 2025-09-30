@@ -1,42 +1,22 @@
-import terser from '@rollup/plugin-terser';
-import resolve from "@rollup/plugin-node-resolve";
-import commonjs from "@rollup/plugin-commonjs";
-import json from "@rollup/plugin-json";
-import peerDepsExternal from 'rollup-plugin-peer-deps-external';
+import { terser } from 'rollup-plugin-terser';
+import babel from '@rollup/plugin-babel';
 
-const jsconfig = [{
-		input: ['src/fear/core/index.js','src/fear/modules/index.js'],
-		output: [
-			{
-				file: 'dist/fear.gui.js',
-				format: 'cjs',
-        		exports: 'named',
-				sourcemap: true,
-			},
-			{
-				file: 'dist/fear.gui.esm.js',
-				format: "esm",
-        		exports: 'named',
-				sourcemap: true,
-			},
-		  	{
-				file: 'dist/fear.gui.bundle.min.js',
-				format: 'iife',
-				name: 'version',
-				plugins: [terser()]
-			}
-		],
-		plugins: [
-			peerDepsExternal(),
-      		resolve({
-        		browser: true,
-        		preferBuiltins: false,
-      		}),
-			commonjs(),
-      		json(),
-			terser()
-		]
-	},  
-];
-
-export default jsconfig;
+export default {
+  input: 'src/jquery.fear.bundle.js',
+  output: {
+    file: 'dist/jquery.fear.min.js',
+    format: 'umd',
+    name: 'FEAR',
+    globals: {
+      jquery: '$'
+    }
+  },
+  external: ['jquery'],
+  plugins: [
+    babel({
+      babelHelpers: 'bundled',
+      presets: ['@babel/preset-env']
+    }),
+    terser()
+  ]
+};
