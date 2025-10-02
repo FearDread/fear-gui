@@ -1,7 +1,6 @@
 import { Utils } from "./utils";
 
 export const SandBox = (() => {
-s
     const DELIM = '__';
 
     return {

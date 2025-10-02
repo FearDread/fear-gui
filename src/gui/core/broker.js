@@ -105,9 +105,7 @@ export const Broker = (() => {
             return Promise.reject(new Error("Channel must be a string"));
         }
 
-        if (typeof data === "function") {
-            data = undefined;
-        }
+        if (typeof data === "function") data = undefined;
 
         const tasks = this._setup(data, channel, channel, this);
 
@@ -117,7 +115,7 @@ export const Broker = (() => {
 
         return Utils.run.first(tasks)
             .catch(errors => {
-                if (Array.isArray(errors)) {
+                if (Utils.isArr(errors)) {
                     const errorMessages = errors
                         .filter(x => x !== null && x !== undefined)
                         .map(x => x.message || String(x));
@@ -138,13 +136,9 @@ export const Broker = (() => {
      * @return {Promise} - resolves when all handlers complete
      */
     Broker.prototype.emit = function(channel, data, origin) {
-        if (!origin || origin === null) {
-            origin = channel;
-        }
+        if (!origin || origin === null) origin = channel;
 
-        if (data && Utils.isFunc(data)) {
-            data = undefined;
-        }
+        if (data && Utils.isFunc(data)) data = undefined;
 
         if (typeof channel !== "string") {
             return Promise.reject(new Error("Channel must be a string"));
@@ -154,7 +148,7 @@ export const Broker = (() => {
 
         const emitPromise = Utils.run.series(tasks)
             .catch(errors => {
-                if (Array.isArray(errors)) {
+                if (Utils.isArr(errors)) {
                     const errorMessages = errors
                         .filter(x => x !== null && x !== undefined)
                         .map(x => x.message || String(x));

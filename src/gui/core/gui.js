@@ -36,7 +36,7 @@ export const FEAR = (($) => {
         this.Broker = Broker;
 
         // Dynamic async module loading
-        this.attach = (imports) => {
+        this.attach = async (imports) => {
             console.log('Dynamic async module loading.');
             console.log('Imports:', imports);
         };
@@ -51,6 +51,8 @@ export const FEAR = (($) => {
                 this.debug.level = this.config.logLevel || 0;
             }
         };
+
+        this.debug.warn('GUI = ', this);
     }
 
     // console log wrapper
@@ -118,7 +120,7 @@ export const FEAR = (($) => {
      * @param options {object} - optional object of extra parameters that will be passed to load() 
      * @return this {object}
     **/
-    GUI.prototype.create = (id, creator, options = {}) => {
+    GUI.prototype.create = function(id, creator, options = {}) {
         // Validate input parameters
         const error = Utils.isType("string", id, "module ID") ||
             Utils.isType("function", creator, "creator") ||
@@ -130,7 +132,7 @@ export const FEAR = (($) => {
         }
 
         // Check if module is already registered
-        if (id in this._modules) {
+        if (this._modules[id]) {
             this.debug.log(`module ${id} was already registered`);
             return this;
         }
@@ -152,7 +154,7 @@ export const FEAR = (($) => {
      * @param opt {object} - optional options object
      * @return Promise - resolves when module is started
     **/
-    GUI.prototype.start = (moduleId, opt = {}) => {
+    GUI.prototype.start = function(moduleId, opt = {}) {
         // Handle different parameter combinations
         if (arguments.length === 0) {
             return this._startAll();
@@ -217,7 +219,7 @@ export const FEAR = (($) => {
      * @param opt {object} - optional options object to be accessed in plugin 
      * @return this {object}
     **/
-    GUI.prototype.use = (plugin, opt) => {
+    GUI.prototype.use = function(plugin, opt) {
         if (Utils.isArr(plugin)) {
             // Handle array of plugins
             plugin.forEach(p => {
@@ -292,7 +294,7 @@ export const FEAR = (($) => {
      * @param module {string} - identifier for jQuery plugin 
      * @return {function} - initialized jQuery plugin 
     **/
-    GUI.prototype.plugin = (plugin, module) => {
+    GUI.prototype.plugin = function(plugin, module) {
         if (plugin.fn && Utils.isFunc(plugin.fn)) {
             $.fn[module.toLowerCase()] = function (options) {
                 return new plugin.fn(this, options);
@@ -307,7 +309,7 @@ export const FEAR = (($) => {
      *
      * @return Promise - resolves when plugins are loaded
     **/
-    GUI.prototype.boot = () => {
+    GUI.prototype.boot = function() {
         const core = this;
 
         const tasks = this._plugins
@@ -487,7 +489,7 @@ export const FEAR = (($) => {
       * @param mods {array} - array of module IDs to start 
       * @return Promise
     **/
-    GUI.prototype._startAll = (mods) => {
+    GUI.prototype._startAll = function(mods) {
         // start all stored modules
         if (!mods || mods === null) {
             mods = Object.keys(this._modules);
@@ -533,7 +535,7 @@ export const FEAR = (($) => {
       * @param o {object} - options object 
       * @return Promise - resolves with {instance, options}
     **/
-    GUI.prototype._createInstance = (moduleId, o) => {
+    GUI.prototype._createInstance = function(moduleId, o) {
         const { options: opt } = o;
         const id = o.instanceId || moduleId;
         const module = this._modules[moduleId];
@@ -587,7 +589,7 @@ export const FEAR = (($) => {
       * @param sb {object} - the sandbox instance 
       * @return Promise
     **/
-    GUI.prototype._runSandboxPlugins = (ev, sb) => {
+    GUI.prototype._runSandboxPlugins = function(ev, sb) {
         // Filter plugins that have the specified event handler
         const tasks = this._plugins
             .filter(plugin => typeof plugin.plugin?.[ev] === "function")

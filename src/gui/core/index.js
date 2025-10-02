@@ -1,5 +1,12 @@
 import { FEAR } from "./gui.js";
 import { Utils } from "./utils.js";
+import { SandBox } from "./sandbox.js";
+import { Broker } from "./broker.js";
+
+window.FEAR = FEAR;
+window.Broker = Broker;
+window.Utils = Utils;
+window.SandBox = SandBox;
 
 (function($) {
   'use strict';
@@ -42,4 +49,3 @@ import { Utils } from "./utils.js";
   (function() { throw new Error('jQuery is required'); })(),
 );
 
-export { default as FEAR } from "./gui.js";
