@@ -3,7 +3,8 @@ import { Utils } from "./utils";
 export const SandBox = (() => {
     const DELIM = '__';
 
-    return {
+    return function() {
+        return {
         // create new API sandbox instance
         create: ($gui, instance, options, module) => {
             const sandbox = {
@@ -15,9 +16,10 @@ export const SandBox = (() => {
             /* Attach Broker methods to sandbox api */ 
             $gui._broker.install(sandbox);
             sandbox.broker = $gui._broker;
-
+            sandbox.Event = $gui.Event;
             /* Add Utils object to sandbox api */
-            sandbox.Utils = Utils;
+            sandbox.Utils = $gui.Utils;
+
              
             /* jQuery wrappers - converted to Promise-based */
             sandbox.fetch = (url, settings = {}) => {
@@ -51,7 +53,7 @@ export const SandBox = (() => {
             sandbox.animation = $.Animation;
 
             /* Module Namespaces */ 
-            SandBox.libs = {};
+            SandBox.Event = $gui.Event;
             sandbox.ui = {};
             sandbox.dom = {};
             sandbox.net = {};
@@ -405,6 +407,7 @@ export const SandBox = (() => {
             return sandbox;
         }
     };
+}
 })();
 
 export default SandBox;

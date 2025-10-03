@@ -5,7 +5,7 @@ import { SandBox } from './gui/core/sandbox.js';
 
 // Plugins
 import { Cellar } from './gui/modules/cellar.js';
-import { Events } from './gui/modules/events.js';
+import { Events } from './gui/core/events.js';
 import { Router } from './gui/modules/router.js';
 
 // Make FEAR available globally

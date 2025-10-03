@@ -1,9 +1,9 @@
 import { Cellar } from "./cellar";
 import { Router } from "./router";
-import { Events } from "./events";
+import { Events } from "../core/events";
 
 
-export { default as Events } from "./events";
+export { default as Events } from "../core/events";
 
 export { default as Cellar } from "./cellar";
 

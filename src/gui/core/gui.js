@@ -1,6 +1,7 @@
 import { Utils } from "./utils";
 import { Broker } from "./broker";
 import { SandBox } from "./sandbox";
+import { Event } from "./events";
 
 export const FEAR = (($) => {
 
@@ -31,10 +32,14 @@ export const FEAR = (($) => {
 
         // Add broker and router to core object
         this._broker = new Broker(this);
+        this._event = new Event();
+
 
         // Public access to classes
         this.Broker = Broker;
-
+        this.Event = new Event()
+          this.Event.on = (elem, event, handler, options) => this.Event.add(elem, event, handler, options);
+        this.Event.off = (elem, event, handler) => this.Event.remove(elem, event, handler);
         // Dynamic async module loading
         this.attach = async (imports) => {
             console.log('Dynamic async module loading.');
@@ -53,6 +58,7 @@ export const FEAR = (($) => {
         };
 
         this.debug.warn('GUI = ', this);
+        return this;
     }
 
     // console log wrapper
@@ -552,7 +558,7 @@ export const FEAR = (($) => {
         };
 
         // Create new API Sandbox
-        const sb = new SandBox().create(this, id, iOpts, moduleId);
+        const sb = SandBox().create(this, id, iOpts, moduleId);
 
         // Add config object if available
         if (this.config) {

@@ -1,4 +1,4 @@
-export const Events = ((FEAR) => {
+export const Event = (() => {
 
     function Event() {
         this._observers = new Map();
@@ -10,7 +10,7 @@ export const Events = ((FEAR) => {
      * @param {string} agent - the user agent string (defaults to navigator.userAgent)
      * @return {boolean} true if mobile device detected
      */
-    Event.prototype.isMobile = function(agent) {
+    Event.prototype.isMobile = function (agent) {
         if (!agent) {
             agent = navigator.userAgent || '';
         }
@@ -26,7 +26,7 @@ export const Events = ((FEAR) => {
      * @param {*} options.detail - optional data payload (default: null)
      * @return {Event} new custom event
      */
-    Event.prototype.create = function(eventName, options = {}) {
+    Event.prototype.create = function (eventName, options = {}) {
         const {
             bubbles = false,
             cancelable = false,
@@ -76,7 +76,7 @@ export const Events = ((FEAR) => {
      * @param {object} detail - optional event detail data
      * @return {Promise<boolean>} resolves with dispatch result
      */
-    Event.prototype.fire = function(elem, event, detail) {
+    Event.prototype.fire = function (elem, event, detail) {
         return new Promise((resolve, reject) => {
             try {
                 if (!elem) {
@@ -138,7 +138,7 @@ export const Events = ((FEAR) => {
      * @param {object} options - event listener options
      * @return {Promise<object>} resolves with removal function
      */
-    Event.prototype.add = function(elem, eventName, handler, options = {}) {
+    Event.prototype.add = function (elem, eventName, handler, options = {}) {
         return new Promise((resolve, reject) => {
             try {
                 if (!elem || !eventName || !handler) {
@@ -152,7 +152,7 @@ export const Events = ((FEAR) => {
 
                 // Handle once option manually for older browsers
                 if (once && !elem.addEventListener) {
-                    wrappedHandler = function(...args) {
+                    wrappedHandler = function (...args) {
                         const result = handler.apply(this, args);
                         Event.prototype.remove.call(this, elem, eventName, wrappedHandler);
                         return result;
@@ -167,7 +167,7 @@ export const Events = ((FEAR) => {
                         once,
                         capture
                     };
-                    
+
                     elem.addEventListener(eventName, wrappedHandler, listenerOptions);
                 }
                 // IE 8 and below
@@ -207,7 +207,7 @@ export const Events = ((FEAR) => {
      * @param {function} handler - event handler function to remove
      * @return {Promise<boolean>} resolves with success status
      */
-    Event.prototype.remove = function(elem, eventName, handler) {
+    Event.prototype.remove = function (elem, eventName, handler) {
         return new Promise((resolve) => {
             try {
                 if (!elem || !eventName) {
@@ -233,7 +233,7 @@ export const Events = ((FEAR) => {
                     const elemObservers = this._observers.get(elem);
                     const observerKey = `${eventName}_${handler.toString()}`;
                     elemObservers.delete(observerKey);
-                    
+
                     if (elemObservers.size === 0) {
                         this._observers.delete(elem);
                     }
@@ -254,7 +254,7 @@ export const Events = ((FEAR) => {
      * @param {function} handler - event handler function
      * @return {Promise<object>} resolves with event data when fired
      */
-    Event.prototype.once = function(elem, eventName, handler) {
+    Event.prototype.once = function (elem, eventName, handler) {
         return new Promise((resolve, reject) => {
             const onceHandler = (event) => {
                 this.remove(elem, eventName, onceHandler)
@@ -280,7 +280,7 @@ export const Events = ((FEAR) => {
      * @param {number} timeout - optional timeout in milliseconds
      * @return {Promise<Event>} resolves with event when fired
      */
-    Event.prototype.waitFor = function(elem, eventName, timeout) {
+    Event.prototype.waitFor = function (elem, eventName, timeout) {
         return new Promise((resolve, reject) => {
             let timeoutId;
 
@@ -303,7 +303,7 @@ export const Events = ((FEAR) => {
      * Get viewport inner height cross-browser
      * @return {number} viewport height in pixels
      */
-    Event.prototype.innerHeight = function() {
+    Event.prototype.innerHeight = function () {
         // Modern browsers
         if (typeof window.innerHeight === 'number') {
             return window.innerHeight;
@@ -316,7 +316,7 @@ export const Events = ((FEAR) => {
         else if (document.body && typeof document.body.clientHeight === 'number') {
             return document.body.clientHeight;
         }
-        
+
         return 0;
     };
 
@@ -324,7 +324,7 @@ export const Events = ((FEAR) => {
      * Get viewport inner width cross-browser
      * @return {number} viewport width in pixels
      */
-    Event.prototype.innerWidth = function() {
+    Event.prototype.innerWidth = function () {
         // Modern browsers
         if (typeof window.innerWidth === 'number') {
             return window.innerWidth;
@@ -337,7 +337,7 @@ export const Events = ((FEAR) => {
         else if (document.body && typeof document.body.clientWidth === 'number') {
             return document.body.clientWidth;
         }
-        
+
         return 0;
     };
 
@@ -347,7 +347,7 @@ export const Events = ((FEAR) => {
      * @param {string} property - CSS property name
      * @return {Promise<string>} resolves with computed style value
      */
-    Event.prototype.getComputedStyle = function(elem, property) {
+    Event.prototype.getComputedStyle = function (elem, property) {
         return new Promise((resolve, reject) => {
             try {
                 if (!elem) {
@@ -381,7 +381,7 @@ export const Events = ((FEAR) => {
      * @param {string} easing - easing function (default: 'ease')
      * @return {Promise} resolves when animation completes
      */
-    Event.prototype.animate = function(elem, properties, duration = 300, easing = 'ease') {
+    Event.prototype.animate = function (elem, properties, duration = 300, easing = 'ease') {
         return new Promise((resolve, reject) => {
             try {
                 if (!elem) {
@@ -436,7 +436,7 @@ export const Events = ((FEAR) => {
                     Object.keys(properties).forEach(prop => {
                         elem.style[prop] = properties[prop];
                     });
-                    
+
                     setTimeout(() => resolve(elem), duration);
                 }
 
@@ -451,7 +451,7 @@ export const Events = ((FEAR) => {
      * @param {Element} elem - the DOM element
      * @return {Promise<boolean>} resolves when all listeners are removed
      */
-    Event.prototype.removeAll = function(elem) {
+    Event.prototype.removeAll = function (elem) {
         return new Promise((resolve) => {
             try {
                 if (this._observers.has(elem)) {
@@ -476,51 +476,15 @@ export const Events = ((FEAR) => {
         });
     };
 
-    return {
-        load: function(GUI) {
-            // Ensure dom namespace exists
-            if (!GUI.dom) {
-                GUI.dom = {};
-            }
-            GUI.dom.Event = new Event();
-            
-            // Add shorthand methods to sandbox
-            GUI.on = (elem, event, handler, options) => GUI.dom.Event.add(elem, event, handler, options);
-            GUI.off = (elem, event, handler) => GUI.dom.Event.remove(elem, event, handler);
-            GUI.once = (elem, event, handler) => GUI.dom.Event.once(elem, event, handler);
-            GUI.fire = (elem, event, detail) => GUI.dom.Event.fire(elem, event, detail);
-            GUI.waitFor = (elem, event, timeout) => GUI.dom.Event.waitFor(elem, event, timeout);
-            GUI.animate = (elem, props, duration, easing) => GUI.dom.Event.animate(elem, props, duration, easing);
-            
-            return Promise.resolve();
-        },
-        
-        unload: function(GUI) {
-            // Clean up all event listeners
-            if (GUI.dom && GUI.dom.Event && GUI.dom.Event.removeAll) {
-                const promises = [];
-                
-                // Remove all tracked listeners
-                if (GUI.dom.Event._observers) {
-                    GUI.dom.Event._observers.forEach((observers, elem) => {
-                        promises.push(GUI.dom.Event.removeAll(elem));
-                    });
-                }
-                
-                return Promise.all(promises).then(() => {
-                    delete GUI.dom.Event;
-                    delete GUI.on;
-                    delete GUI.off;
-                    delete GUI.once;
-                    delete GUI.fire;
-                    delete GUI.waitFor;
-                    delete GUI.animate;
-                });
-            }
-            
-            return Promise.resolve();
-        }
-    }
+    Event.on = (elem, event, handler, options) => Event.add(elem, event, handler, options);
+    Event.off = (elem, event, handler) => Event.remove(elem, event, handler);
+    Event.once = (elem, event, handler) => Event.once(elem, event, handler);
+    Event.fire = (elem, event, detail) => Event.fire(elem, event, detail);
+    Event.waitFor = (elem, event, timeout) => Event.waitFor(elem, event, timeout);
+    Event.animate = (elem, props, duration, easing) => Event.animate(elem, props, duration, easing);
+
+    return Event;
+
 })();
 
-export default Events;
+export default Event;
