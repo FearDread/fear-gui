@@ -1,408 +1,405 @@
-import { Utils } from "./utils";
+import { Utils } from './utils';
 
-export const Broker = (() => {
+/**
+ * Event Broker - Pub/Sub messaging system with channel support
+ * Provides event-driven communication between modules
+ */
+class EventBroker {
+  constructor(target, cascade = false) {
+    this.cascade = cascade;
+    this.channels = {};
+    this.fireOrigin = false;
 
-    function Broker(obj, cascade) {
-        this.cascade = (cascade) ? true : false;
-        this.channels = {};
+    if (Utils.isObj(target)) {
+      this.install(target);
+    } else if (target === true) {
+      this.cascade = true;
+    }
+  }
 
-        if (Utils.isObj(obj)) {
-            this.install(obj);
-        } else if (obj === true) {
-            this.cascade = true;
-        }
+  // ==================== Subscription Management ====================
+
+  /**
+   * Subscribe to a channel
+   * @param {string} channel - Channel name
+   * @param {Function} callback - Handler function
+   * @param {Object} [context] - Execution context
+   * @returns {Object} Subscription object with listen/ignore methods
+   */
+  add(channel, callback, context = this) {
+    if (!this.channels[channel]) {
+      this.channels[channel] = [];
     }
 
-    /**
-     * Bind function to specific context
-     * @param {Function} fn - function to bind
-     * @param {Object} me - context to bind to
-     * @return {Function} - bound function
-     */
-    Broker.prototype.bind = (fn, me) => {
-        return (...args) => {
-            return fn.apply(me, args);
-        };
+    const subscription = {
+      event: channel,
+      context,
+      callback: callback || (() => {})
     };
 
-    /**
-     * Add subscription to a channel
-     * @param {String} channel - channel name
-     * @param {Function} fn - callback function
-     * @param {Object} context - execution context
-     * @return {Object} - subscription object with listen/ignore methods
-     */
-    Broker.prototype.add = function(channel, fn, context) {
-        const _this = this;
-
-        if (!context || context === null) context = this;
-        if (!this.channels[channel]) this.channels[channel] = [];
-        
-        const subscription = {
-            event: channel,
-            context: context,
-            callback: fn || function(){}
-        };
-      
-        return {
-            listen() {
-                _this.channels[channel].push(subscription);
-                return this;
-            },
-            ignore() {
-                _this.remove(channel, fn, context);
-                return this;
-            }
-        }.listen();
-    };
-
-    /**
-     * Remove subscriptions from channels
-     * @param {String|Function|Object} channel - channel name, callback function, or context object
-     * @param {Function} cb - optional callback to remove
-     * @param {Object} context - optional context to remove
-     * @return {Broker} - this broker instance
-     */
-    Broker.prototype.remove = function(channel, cb, context) {
-        switch (typeof channel) {
-            case "string":
-                if (typeof cb === "function") {
-                    Broker._delete(this, channel, cb, context);
-                } else if (typeof cb === "undefined") {
-                    Broker._delete(this, channel);
-                }
-                break;
-
-            case "function":
-                for (const id in this.channels) {
-                    Broker._delete(this, id, channel);
-                }
-                break;
-
-            case "undefined":
-                for (const id in this.channels) {
-                    Broker._delete(this, id);
-                }
-                break;
-
-            case "object":
-                for (const id in this.channels) {
-                    Broker._delete(this, id, null, channel);
-                }
-        }
-
+    return {
+      listen: () => {
+        this.channels[channel].push(subscription);
         return this;
+      },
+      ignore: () => {
+        this.remove(channel, callback, context);
+        return this;
+      }
+    }.listen();
+  }
+
+  /**
+   * Unsubscribe from channels
+   * @param {string|Function|Object} channel - Channel name, callback, or context
+   * @param {Function} [callback] - Optional callback to remove
+   * @param {Object} [context] - Optional context to remove
+   * @returns {EventBroker} This instance
+   */
+  remove(channel, callback, context) {
+    const type = typeof channel;
+
+    if (type === 'string') {
+      if (typeof callback === 'function') {
+        this._deleteSubscriptions(channel, callback, context);
+      } else if (callback === undefined) {
+        this._deleteSubscriptions(channel);
+      }
+    } else if (type === 'function') {
+      // Remove all subscriptions with this callback
+      Object.keys(this.channels).forEach(id => {
+        this._deleteSubscriptions(id, channel);
+      });
+    } else if (type === 'undefined') {
+      // Remove all subscriptions
+      Object.keys(this.channels).forEach(id => {
+        this._deleteSubscriptions(id);
+      });
+    } else if (type === 'object') {
+      // Remove all subscriptions with this context
+      Object.keys(this.channels).forEach(id => {
+        this._deleteSubscriptions(id, null, channel);
+      });
+    }
+
+    return this;
+  }
+
+  /**
+   * Subscribe to a channel for one-time execution
+   * @param {string} channel - Channel name
+   * @param {Function} callback - Handler function
+   * @param {Object} [context] - Execution context
+   * @returns {Object} Subscription object
+   */
+  once(channel, callback, context) {
+    let fired = false;
+
+    const onceWrapper = (...args) => {
+      if (!fired) {
+        fired = true;
+        this.remove(channel, onceWrapper);
+        return callback.apply(context || this, args);
+      }
     };
 
-    /**
-     * Fire event on channel (first successful handler wins)
-     * @param {String} channel - channel name
-     * @param {*} data - data to pass to handlers
-     * @return {Promise} - resolves with first successful result
-     */
-    Broker.prototype.fire = function(channel, data) {
-        if (typeof channel !== "string") {
-            return Promise.reject(new Error("Channel must be a string"));
+    return this.add(channel, onceWrapper, context);
+  }
+
+  /**
+   * Remove all subscriptions
+   * @returns {EventBroker} This instance
+   */
+  clear() {
+    this.channels = {};
+    return this;
+  }
+
+  // ==================== Event Emission ====================
+
+  /**
+   * Fire event on channel (first successful handler wins)
+   * @param {string} channel - Channel name
+   * @param {*} data - Data to pass to handlers
+   * @returns {Promise} Resolves with first successful result
+   */
+  async fire(channel, data) {
+    if (typeof channel !== 'string') {
+      throw new Error('Channel must be a string');
+    }
+
+    if (typeof data === 'function') {
+      data = undefined;
+    }
+
+    const tasks = this._setupTasks(data, channel, channel);
+
+    if (tasks.length === 0) {
+      return null;
+    }
+
+    try {
+      return await Utils.run.first(tasks);
+    } catch (errors) {
+      throw this._formatErrors(errors);
+    }
+  }
+
+  /**
+   * Emit event on channel (all handlers execute in series)
+   * @param {string} channel - Channel name
+   * @param {*} data - Data to pass to handlers
+   * @param {string} [origin] - Origin channel for cascade
+   * @returns {Promise} Resolves when all handlers complete
+   */
+  async emit(channel, data, origin = channel) {
+    if (typeof channel !== 'string') {
+      throw new Error('Channel must be a string');
+    }
+
+    if (data && Utils.isFunc(data)) {
+      data = undefined;
+    }
+
+    const tasks = this._setupTasks(data, channel, origin);
+
+    try {
+      const result = await Utils.run.series(tasks);
+
+      // Handle cascading to parent channels
+      if (this.cascade) {
+        const segments = channel.split('/');
+        if (segments.length > 1) {
+          const parentChannel = segments.slice(0, -1).join('/');
+          const cascadeOrigin = this.fireOrigin ? origin : parentChannel;
+          await this.emit(parentChannel, data, cascadeOrigin);
         }
+      }
 
-        if (typeof data === "function") data = undefined;
+      return result;
+    } catch (errors) {
+      throw this._formatErrors(errors);
+    }
+  }
 
-        const tasks = this._setup(data, channel, channel, this);
+  // ==================== Advanced Features ====================
 
-        if (tasks.length === 0) {
-            return Promise.resolve(null);
-        }
+  /**
+   * Wait for an event to be fired
+   * @param {string} channel - Channel name
+   * @param {number} [timeout] - Optional timeout in milliseconds
+   * @returns {Promise} Resolves with event data or rejects on timeout
+   */
+  waitFor(channel, timeout) {
+    return new Promise((resolve, reject) => {
+      let timeoutId;
 
-        return Utils.run.first(tasks)
-            .catch(errors => {
-                if (Utils.isArr(errors)) {
-                    const errorMessages = errors
-                        .filter(x => x !== null && x !== undefined)
-                        .map(x => x.message || String(x));
-                    
-                    const error = new Error(errorMessages.join('; '));
-                    error.originalErrors = errors;
-                    throw error;
-                }
-                throw errors;
+      const cleanup = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+
+      if (timeout && timeout > 0) {
+        timeoutId = setTimeout(() => {
+          this.remove(channel, handler);
+          reject(new Error(`Timeout waiting for event '${channel}' after ${timeout}ms`));
+        }, timeout);
+      }
+
+      const handler = (data, origin) => {
+        cleanup();
+        this.remove(channel, handler);
+        resolve({ data, origin, channel });
+      };
+
+      this.add(channel, handler);
+    });
+  }
+
+  /**
+   * Pipe events from one channel to another
+   * @param {string} source - Source channel
+   * @param {string} target - Target channel
+   * @param {EventBroker} [broker] - Target broker (defaults to this)
+   * @returns {EventBroker} This instance
+   */
+  pipe(source, target, broker) {
+    // Handle parameter variations
+    if (target instanceof EventBroker) {
+      broker = target;
+      target = source;
+    }
+
+    if (!broker) {
+      broker = this;
+    }
+
+    // Prevent circular pipes
+    if (broker === this && source === target) {
+      return this;
+    }
+
+    this.add(source, (...args) => broker.fire(target, ...args));
+    return this;
+  }
+
+  /**
+   * Create a namespaced broker interface
+   * @param {string} namespace - Namespace prefix
+   * @returns {Object} Namespaced broker interface
+   */
+  namespace(namespace) {
+    const separator = '/';
+    const prefix = `${namespace}${separator}`;
+
+    return {
+      add: (channel, fn, context) => 
+        this.add(prefix + channel, fn, context),
+      remove: (channel, cb, context) => 
+        this.remove(prefix + channel, cb, context),
+      fire: (channel, data) => 
+        this.fire(prefix + channel, data),
+      emit: (channel, data, origin) => 
+        this.emit(prefix + channel, data, origin),
+      once: (channel, fn, context) => 
+        this.once(prefix + channel, fn, context),
+      waitFor: (channel, timeout) => 
+        this.waitFor(prefix + channel, timeout),
+      pipe: (src, target, broker) => 
+        this.pipe(prefix + src, prefix + target, broker),
+      getSubscriberCount: (channel) => 
+        this.getSubscriberCount(prefix + channel)
+    };
+  }
+
+  /**
+   * Install broker methods on target object
+   * @param {Object} target - Target object
+   * @param {boolean} [forced] - Override existing properties
+   * @returns {EventBroker} This instance
+   */
+  install(target, forced = false) {
+    if (!Utils.isObj(target)) {
+      return this;
+    }
+
+    Object.keys(this).forEach(key => {
+      const value = this[key];
+      if (typeof value === 'function' && (forced || !target[key])) {
+        target[key] = value.bind(this);
+      }
+    });
+
+    return this;
+  }
+
+  // ==================== Inspection Methods ====================
+
+  /**
+   * Get all active channels
+   * @returns {string[]} Array of channel names
+   */
+  getChannels() {
+    return Object.keys(this.channels).filter(
+      channel => this.channels[channel]?.length > 0
+    );
+  }
+
+  /**
+   * Get subscriber count for a channel
+   * @param {string} channel - Channel name
+   * @returns {number} Number of subscribers
+   */
+  getSubscriberCount(channel) {
+    return this.channels[channel]?.length || 0;
+  }
+
+  // ==================== Private Methods ====================
+
+  /**
+   * Delete subscriptions matching criteria
+   * @private
+   */
+  _deleteSubscriptions(channel, callback, context) {
+    if (!this.channels[channel]) {
+      return [];
+    }
+
+    this.channels[channel] = this.channels[channel].filter(sub => {
+      if (callback && sub.callback === callback) return false;
+      if (context && sub.context === context) return false;
+      if (!callback && !context && sub.context === this) return false;
+      return true;
+    });
+
+    return this.channels[channel];
+  }
+
+  /**
+   * Setup task functions for event execution
+   * @private
+   */
+  _setupTasks(data, channel, origin) {
+    const subscribers = this.channels[channel] || [];
+
+    return subscribers.map(sub => () => {
+      return new Promise((resolve, reject) => {
+        try {
+          // Check if callback expects a callback parameter (async style)
+          if (Utils.hasArgs(sub.callback, 3)) {
+            sub.callback.call(sub.context, data, origin, (err, result) => {
+              err ? reject(err) : resolve(result);
             });
-    };
-        
-    /**
-     * Emit event on channel (all handlers execute in series)
-     * @param {String} channel - channel name
-     * @param {*} data - data to pass to handlers
-     * @param {String} origin - optional origin channel for cascade
-     * @return {Promise} - resolves when all handlers complete
-     */
-    Broker.prototype.emit = function(channel, data, origin) {
-        if (!origin || origin === null) origin = channel;
+          } else {
+            const result = sub.callback.call(sub.context, data, origin);
 
-        if (data && Utils.isFunc(data)) data = undefined;
-
-        if (typeof channel !== "string") {
-            return Promise.reject(new Error("Channel must be a string"));
-        }
-
-        const tasks = this._setup(data, channel, origin, this);
-
-        const emitPromise = Utils.run.series(tasks)
-            .catch(errors => {
-                if (Utils.isArr(errors)) {
-                    const errorMessages = errors
-                        .filter(x => x !== null && x !== undefined)
-                        .map(x => x.message || String(x));
-                    
-                    const error = new Error(errorMessages.join('; '));
-                    error.originalErrors = errors;
-                    throw error;
-                }
-                throw errors;
-            });
-
-        // Handle cascading
-        if (this.cascade) {
-            const channels = channel.split('/');
-            if (channels.length > 1) {
-                const parentChannel = channels.slice(0, -1).join('/');
-                const originToUse = this.fireOrigin ? origin : parentChannel;
-                
-                return emitPromise.then(result => {
-                    return this.emit(parentChannel, data, originToUse)
-                        .then(() => result);
-                });
+            // Handle promise-returning callbacks
+            if (result && typeof result.then === 'function') {
+              result.then(resolve, reject);
+            } else {
+              resolve(result);
             }
+          }
+        } catch (error) {
+          reject(error);
         }
+      });
+    });
+  }
 
-        return emitPromise;
-    };
+  /**
+   * Format errors for consistent error reporting
+   * @private
+   */
+  _formatErrors(errors) {
+    if (Utils.isArr(errors)) {
+      const messages = errors
+        .filter(x => x != null)
+        .map(x => x.message || String(x));
 
-    /**
-     * Install broker methods on target object
-     * @param {Object} obj - target object
-     * @param {Boolean} forced - whether to override existing properties
-     * @return {Broker} - this broker instance
-     */
-    Broker.prototype.install = function(obj, forced) {
-        if (Utils.isObj(obj)) {
-            for (const key in this) {
-                const value = this[key];
-                
-                if (typeof value === 'function') {
-                    if (forced || !obj[key]) {
-                        obj[key] = value.bind(this);
-                    }
-                }
-            }
-        }
+      const error = new Error(messages.join('; '));
+      error.originalErrors = errors;
+      return error;
+    }
+    return errors;
+  }
+}
 
-        return this;
-    };
+// ==================== Static Convenience Methods ====================
 
-    /**
-     * Remove specific subscriptions from a channel
-     * @param {Object} obj - broker instance
-     * @param {String} channel - channel name
-     * @param {Function} cb - callback to remove
-     * @param {Object} context - context to remove
-     * @return {Array} - remaining subscriptions
-     */
-    Broker._delete = function(obj, channel, cb, context) {
-        if (!obj.channels[channel]) {
-            return [];
-        }
+EventBroker.on = (channel, callback, context) => 
+  new EventBroker().add(channel, callback, context);
 
-        obj.channels[channel] = obj.channels[channel].filter(subscription => {
-            // Keep subscription if none of the removal criteria match
-            if (cb && subscription.callback === cb) return false;
-            if (context && subscription.context === context) return false;
-            if (!cb && !context && subscription.context === obj) return false;
-            return true;
-        });
+EventBroker.off = (channel, callback, context) => 
+  new EventBroker().remove(channel, callback, context);
 
-        return obj.channels[channel];
-    };
+EventBroker.once = (channel, callback, context) => 
+  new EventBroker().once(channel, callback, context);
 
-    /**
-     * Setup tasks for event execution
-     * @param {*} data - data to pass to handlers
-     * @param {String} channel - channel name
-     * @param {String} origin - origin channel
-     * @param {Object} context - broker context
-     * @return {Array} - array of task functions
-     */
-    Broker.prototype._setup = function(data, channel, origin, context) {
-        const subscribers = context.channels[channel] || [];
-        
-        return subscribers.map(sub => {
-            return () => {
-                return new Promise((resolve, reject) => {
-                    try {
-                        // Check if callback expects a callback parameter (async style)
-                        if (Utils.hasArgs(sub.callback, 3)) {
-                            sub.callback.call(sub.context, data, origin, (err, result) => {
-                                if (err) {
-                                    reject(err);
-                                } else {
-                                    resolve(result);
-                                }
-                            });
-                        } else {
-                            // Synchronous callback or returns a promise
-                            const result = sub.callback.call(sub.context, data, origin);
-                            
-                            // If result is a promise, use it directly
-                            if (result && typeof result.then === 'function') {
-                                result.then(resolve, reject);
-                            } else {
-                                resolve(result);
-                            }
-                        }
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-            };
-        });
-    };
+EventBroker.fire = (channel, data) => 
+  new EventBroker().fire(channel, data);
 
-    /**
-     * Pipe events from one channel to another
-     * @param {String} src - source channel
-     * @param {String} target - target channel
-     * @param {Broker} broker - broker to pipe to (defaults to this)
-     * @return {Broker} - this broker instance
-     */
-    Broker.prototype.pipe = function(src, target, broker) {
-        // Handle parameter variations
-        if (target instanceof Broker) {
-            broker = target;
-            target = src;
-        }
+EventBroker.emit = (channel, data, origin) => 
+  new EventBroker().emit(channel, data, origin);
 
-        if (!broker) {
-            return this.pipe(src, target, this);
-        }
-
-        if (broker === this && src === target) {
-            return this;
-        }
-
-        this.add(src, (...args) => {
-            return broker.fire(target, ...args);
-        });
-
-        return this;
-    };
-
-    /**
-     * Create a channel that only fires once
-     * @param {String} channel - channel name
-     * @param {Function} fn - callback function
-     * @param {Object} context - execution context
-     * @return {Object} - subscription object
-     */
-    Broker.prototype.once = function(channel, fn, context) {
-        const _this = this;
-        let fired = false;
-
-        const onceWrapper = function(...args) {
-            if (!fired) {
-                fired = true;
-                _this.remove(channel, onceWrapper);
-                return fn.apply(this, args);
-            }
-        };
-
-        return this.add(channel, onceWrapper, context);
-    };
-
-    /**
-     * Wait for an event to be fired
-     * @param {String} channel - channel name
-     * @param {Number} timeout - optional timeout in milliseconds
-     * @return {Promise} - resolves when event fires or rejects on timeout
-     */
-    Broker.prototype.waitFor = function(channel, timeout) {
-        return new Promise((resolve, reject) => {
-            let timeoutId;
-
-            const cleanup = () => {
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                }
-            };
-
-            // Set up timeout if specified
-            if (timeout && timeout > 0) {
-                timeoutId = setTimeout(() => {
-                    this.remove(channel, handler);
-                    reject(new Error(`Timeout waiting for event '${channel}' after ${timeout}ms`));
-                }, timeout);
-            }
-
-            // Set up event handler
-            const handler = (data, origin) => {
-                cleanup();
-                this.remove(channel, handler);
-                resolve({ data, origin, channel });
-            };
-
-            this.add(channel, handler);
-        });
-    };
-
-    /**
-     * Get all active channels
-     * @return {Array} - array of channel names
-     */
-    Broker.prototype.getChannels = function() {
-        return Object.keys(this.channels).filter(channel => 
-            this.channels[channel] && this.channels[channel].length > 0
-        );
-    };
-
-    /**
-     * Get subscriber count for a channel
-     * @param {String} channel - channel name
-     * @return {Number} - number of subscribers
-     */
-    Broker.prototype.getSubscriberCount = function(channel) {
-        return this.channels[channel] ? this.channels[channel].length : 0;
-    };
-
-    /**
-     * Clear all subscriptions from all channels
-     * @return {Broker} - this broker instance
-     */
-    Broker.prototype.clear = function() {
-        this.channels = {};
-        return this;
-    };
-
-    /**
-     * Create a namespaced broker that prefixes all channel names
-     * @param {String} namespace - namespace prefix
-     * @return {Object} - namespaced broker interface
-     */
-    Broker.prototype.namespace = function(namespace) {
-        const _this = this;
-        const separator = '/';
-
-        return {
-            add: (channel, fn, context) => _this.add(namespace + separator + channel, fn, context),
-            remove: (channel, cb, context) => _this.remove(namespace + separator + channel, cb, context),
-            fire: (channel, data) => _this.fire(namespace + separator + channel, data),
-            emit: (channel, data, origin) => _this.emit(namespace + separator + channel, data, origin),
-            once: (channel, fn, context) => _this.once(namespace + separator + channel, fn, context),
-            waitFor: (channel, timeout) => _this.waitFor(namespace + separator + channel, timeout),
-            pipe: (src, target, broker) => _this.pipe(namespace + separator + src, namespace + separator + target, broker),
-            getSubscriberCount: (channel) => _this.getSubscriberCount(namespace + separator + channel)
-        };
-    };
-
-    return Broker;
-
-})();
-
-export default Broker;
+export { EventBroker as Broker };
+export default EventBroker;

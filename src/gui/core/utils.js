@@ -1,68 +1,13 @@
 
-export const Utils = {
+export const utils = {
     /* jQuery $.extend pointer */
     merge: $.extend,
-    /*   Regex */
-    fnRgx: / [^(]*\(([^)]*)\)/,
-    /* Argument Regex */
-    argRgx: /([^\s,]+)/g,
 
-    each: (obj, iterator, context) => {
-        var key, length, isPrimitive;
+    each: Object.prototype.forEach,
 
-        if (obj) {
-            if (is (obj)) {
+    has: Object.prototype.hasOwnProperty,
 
-                for (key in obj) {
-                    if (key != 'prototype' && key != 'length' && key != 'name' && (!obj.hasOwnProperty || obj.hasOwnProperty(key))) {
-                        iterator.call(context, obj[key], key, obj);
-                    }
-                }
-            } else if (isArray(obj) || isArrayLike(obj)) {
-                isPrimitive = typeof obj !== 'object';
-
-                for (key = 0, length = obj.length; key < length; key++) {
-                    if (isPrimitive || key in obj) {
-
-                        iterator.call(context, obj[key], key, obj);
-                    }
-                }
-
-            } else if (obj.forEach && obj.forEach !== forEach) {
-
-                obj.forEach(iterator, context, obj);
-
-            } else if (isBlankObject(obj)) {
-                for (key in obj) {
-
-                    iterator.call(context, obj[key], key, obj);
-                }
-
-            } else if (typeof obj.hasOwnProperty === ' ') {
-
-                for (key in obj) {
-                    if (obj.hasOwnProperty(key)) {
-
-                        iterator.call(context, obj[key], key, obj);
-                    }
-                }
-            } else {
-                for (key in obj) {
-                    if (hasOwnProperty.call(obj, key)) {
-
-                        iterator.call(context, obj[key], key, obj);
-                    }
-                }
-            }
-        }
-
-        return obj;
-    },
-
-    /* Shorthand reference to Object.prototype.hasOwnProperty */
-    hasProp: {}.hasOwnProperty,
-    /* Array.prototype.slice */
-    slice: [].slice,
+    slice: Array.prototype.slice,
 
     /**
      * Attach child object prototype to parent object prototype 
@@ -350,10 +295,9 @@ export const Utils = {
             style = elem.getAttribute('style');
 
         elem.setAttribute('style', style + ';font-size:1em !important');
-
-        base = this.getFontsize();
-
         elem.setAttribute('style', style);
+        
+        base = this.getFontsize();
 
         return base;
     },
@@ -430,17 +374,12 @@ export const Utils = {
     **/
     unique: (length) => {
         var id = '';
-
-        if (!length || length === null) {
-            length = 8;
-        }
-
+        if (!length || length === null) length = 8;
         while (id.length < length) {
             id += Math.random().toString(36).substr(2);
         }
-
         return id.substr(0, length);
     }
 };
 
-export default Utils;
+export default utils;
