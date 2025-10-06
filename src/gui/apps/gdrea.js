@@ -1,161 +1,134 @@
+(($, window, undefined) => {
+// ============================================
 // Core App Module
-$.FEAR.create('FearCore', (GUI) => {
+// ============================================
+$.FEAR.create('FearCore', (gui) => {
     
-    const createPreloader = () => {
-        return {
-            /**
-             * Initialize preloader with mobile detection
-             * @return {Promise<boolean>} resolves when preloader is ready
-             */
-            init: function() {
-                return new Promise((resolve) => {
-                    const isMobile = GUI.dom.Event.isMobile();
-                    const $preloader = GUI.$('#preloader');
-                    
-                    if (!isMobile) {
-                        GUI.timeout(800)
-                            .then(() => $preloader.addClass('preloaded'))
-                            .then(() => GUI.timeout(1200))
-                            .then(() => $preloader.remove())
-                            .then(() => resolve(true));
-                    } else {
-                        $preloader.remove();
-                        resolve(true);
-                    }
-                });
+    const createPreloader = () => ({
+        init: async () => {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const $preloader = gui.$('#preloader');
+            
+            if (!isMobile) {
+                await gui.timeout(800);
+                $preloader.addClass('preloaded');
+                await gui.timeout(1200);
+                $preloader.remove();
+            } else {
+                $preloader.remove();
             }
-        };
-    };
+            return true;
+        }
+    });
 
     const createModalManager = () => {
         let $modalBox = null;
 
         return {
-            /**
-             * Initialize modal structure
-             * @return {Promise<boolean>} resolves when modal is created
-             */
-            init: function() {
-                return new Promise((resolve) => {
-                    const modalHtml = `
-                        <div class="fear_modalbox">
-                            <div class="box_inner">
-                                <div class="close">
-                                    <a href="#"><i class="icon-cancel"></i></a>
-                                </div>
-                                <div class="description_wrap"></div>
+            init: async () => {
+                const modalHtml = `
+                    <div class="fear_modalbox">
+                        <div class="box_inner">
+                            <div class="close">
+                                <a href="#"><i class="icon-cancel"></i></a>
                             </div>
-                        </div>`;
-                    
-                    GUI.$('.fear_all_wrap').prepend(modalHtml);
-                    $modalBox = GUI.$('.fear_modalbox');
-                    
-                    this.bindEvents().then(() => resolve(true));
-                });
-            },
-
-            /**
-             * Bind modal close events
-             * @return {Promise<boolean>} resolves when events are bound
-             */
-            bindEvents: function() {
-                return GUI.on($modalBox.find('.close')[0], 'click', (e) => {
+                            <div class="description_wrap"></div>
+                        </div>
+                    </div>`;
+                
+                gui.$('.fear_all_wrap').prepend(modalHtml);
+                $modalBox = gui.$('.fear_modalbox');
+                
+                // Bind close event
+                $modalBox.find('.close a').on('click', (e) => {
                     e.preventDefault();
-                    return this.close();
+                    this.close();
                 });
+                
+                return true;
             },
 
-            /**
-             * Open modal with content
-             * @param {string} content - HTML content for modal
-             * @return {Promise<boolean>} resolves when modal is opened
-             */
-            open: function(content) {
-                return new Promise((resolve) => {
-                    $modalBox.find('.description_wrap').html(content);
-                    $modalBox.addClass('opened');
-                    resolve(true);
-                });
+            open: async (content) => {
+                $modalBox.find('.description_wrap').html(content);
+                $modalBox.addClass('opened');
+                return true;
             },
 
-            /**
-             * Close modal
-             * @return {Promise<boolean>} resolves when modal is closed
-             */
-            close: function() {
-                return new Promise((resolve) => {
-                    $modalBox.removeClass('opened');
-                    $modalBox.find('.description_wrap').html('');
-                    resolve(true);
-                });
+            close: async () => {
+                $modalBox.removeClass('opened');
+                $modalBox.find('.description_wrap').html('');
+                return true;
             }
         };
     };
 
-    const createMobileMenu = () => {
-        return {
-            /**
-             * Initialize mobile menu functionality
-             * @return {Promise<boolean>} resolves when menu is initialized
-             */
-            init: function() {
-                const $hamburger = GUI.$('.fear_topbar .trigger .hamburger');
-                const $mobileMenu = GUI.$('.fear_mobile_menu');
-                const $menuItems = GUI.$('.fear_mobile_menu ul li a');
+    const createMobileMenu = () => ({
+        init: async () => {
+            const $hamburger = gui.$('.fear_topbar .trigger .hamburger');
+            const $mobileMenu = gui.$('.fear_mobile_menu');
+            const $menuItems = gui.$('.fear_mobile_menu ul li a');
 
-                const toggleMenu = (e) => {
-                    e.preventDefault();
-                    const $element = GUI.$(e.target);
-                    
-                    if ($element.hasClass('is-active')) {
-                        $element.removeClass('is-active');
-                        $mobileMenu.removeClass('opened');
-                    } else {
-                        $element.addClass('is-active');
-                        $mobileMenu.addClass('opened');
-                    }
-                };
-
-                const closeMenu = () => {
+            const toggleMenu = (e) => {
+                e.preventDefault();
+                if ($hamburger.hasClass('is-active')) {
                     $hamburger.removeClass('is-active');
                     $mobileMenu.removeClass('opened');
-                };
+                } else {
+                    $hamburger.addClass('is-active');
+                    $mobileMenu.addClass('opened');
+                }
+            };
 
-                return Promise.all([
-                    GUI.on($hamburger[0], 'click', toggleMenu),
-                    ...$menuItems.map(item => GUI.on(item, 'click', closeMenu))
-                ]);
-            }
-        };
-    };
+            const closeMenu = () => {
+                $hamburger.removeClass('is-active');
+                $mobileMenu.removeClass('opened');
+            };
+
+            $hamburger.on('click', toggleMenu);
+            $menuItems.on('click', closeMenu);
+            
+            return true;
+        }
+    });
 
     return {
-        load: (sb) => {
+        load: async (options) => {
+            gui.log('FearCore: Loading...');
+            
             const preloader = createPreloader();
             const modalManager = createModalManager();
             const mobileMenu = createMobileMenu();
 
-            return preloader.init()
-                .then(() => modalManager.init())
-                .then(() => mobileMenu.init())
-                .then(() => {
-                    // Store components in GUI for other modules
-                    sb.preloader = preloader;
-                    sb.modal = modalManager;
-                    sb.mobileMenu = mobileMenu;
-                })
-                .catch(err => {
-                    sb.warn('FearCore load failed:', err);
-                });
+            try {
+                await preloader.init();
+                await modalManager.init();
+                await mobileMenu.init();
+                
+                // Store components in gui for other modules
+                gui.preloader = preloader;
+                gui.modal = modalManager;
+                gui.mobileMenu = mobileMenu;
+                
+                gui.log('FearCore: Loaded successfully');
+            } catch (err) {
+                gui.warn('FearCore load failed:', err);
+                throw err;
+            }
+        },
+        
+        unload: () => {
+            gui.log('FearCore: Unloading...');
         }
     };
 });
 
+// ============================================
 // Router Module
-$.FEAR.create('FearRouter', (GUI) => {
+// ============================================
+$.FEAR.create('FearRouter', (gui) => {
     
-    const createRouter = () => {
-        const routes = {
+    const FearRouter = function() {
+        this.routes = {
             home: { name: 'home', html: null, data: null },
             about: { name: 'about', html: null, data: null },
             works: { name: 'works', html: null, data: null },
@@ -164,280 +137,221 @@ $.FEAR.create('FearRouter', (GUI) => {
         };
 
         return {
-            /**
-             * Initialize router and bind events
-             * @return {Promise<boolean>} resolves when router is ready
-             */
-            init: function() {
-                GUI.log('Router initialized');
+            init: async () => {
+                gui.log('Router: Initializing...');
                 
-                return Promise.all([
-                    GUI.on(window, 'hashchange', () => this.route()),
-                    GUI.on(window, 'popstate', () => this.route())
-                ])
-                .then(() => {
-                    // Trigger initial route
-                    return this.route();
-                });
+                // Bind hash change events
+                $(window).on('hashchange', () => this.route());
+                $(window).on('popstate', () => this.route());
+                
+                // Trigger initial route
+                await this.route();
+                return true;
             },
 
-            /**
-             * Handle route changes
-             * @return {Promise<boolean>} resolves when route is processed
-             */
-            route: function() {
-                return new Promise((resolve, reject) => {
-                    let loc = window.location.hash.replace("#", "");
-                    if (loc === '') loc = 'home';
+            route: async () => {
+                let loc = window.location.hash.replace("#", "");
+                if (loc === '') loc = 'home';
 
-                    const route = routes[loc] || routes['home'];
-                    
-                    if (route.html !== null) {
-                        this.render(route).then(resolve).catch(reject);
-                    } else {
-                        this.fetch(route).then(resolve).catch(reject);
-                    }
-                });
+                const route = this.routes[loc] || routes['home'];
+                
+                if (route.html !== null) {
+                    await this.render(route);
+                } else {
+                    await this.fetch(route);
+                }
             },
 
-            /**
-             * Fetch route template
-             * @param {object} route - route configuration
-             * @return {Promise<boolean>} resolves when template is fetched
-             */
-            fetch: function(route) {
-                return GUI.fetch(`js/fragments/${route.name}.html`, { cache: true })
-                    .then(response => {
-                        route.html = response.data;
-                        return this.render(route);
-                    })
-                    .catch(error => {
-                        GUI.warn(`Error loading template for ${route.name}:`, error);
-                        throw error;
+            fetch: async (route) => {
+                try {
+                    const response = await gui.fetch(`js/fragments/${route.name}.html`, { 
+                        cache: true 
                     });
+                    route.html = response.data;
+                    await this.render(route);
+                } catch (error) {
+                    gui.warn(`Error loading template for ${route.name}:`, error);
+                    throw error;
+                }
             },
 
-            /**
-             * Fetch GitHub profile data
-             * @return {Promise<object>} resolves with GitHub data
-             */
-            fetchGitProfile: function() {
-                return GUI.fetch('https://GUI.github.com/users/FearDread')
-                    .then(response => {
-                        GUI.log('GitHub data loaded:', response.data);
-                        return response.data;
-                    })
-                    .catch(error => {
-                        GUI.warn('Error loading GitHub profile:', error);
-                        throw error;
-                    });
+            fetchGitProfile: async () => {
+                try {
+                    const response = await gui.fetch('https://api.github.com/users/FearDread');
+                    gui.log('GitHub data loaded:', response.data);
+                    return response.data;
+                } catch (error) {
+                    gui.warn('Error loading GitHub profile:', error);
+                    throw error;
+                }
             },
 
-            /**
-             * Render route template
-             * @param {object} source - route data
-             * @return {Promise<boolean>} resolves when rendered
-             */
-            render: (source) => {
-                return new Promise((resolve) => {
-                    const $container = GUI.$('.fear_container');
+            render: async (source) => {
+                const $container = gui.$('.fear_container');
+                
+                try {
+                    // Fade out
+                    await $container.animate({ opacity: 0 }, 200).promise();
                     
-                    // Fade out current content
-                    $container.animateAsync({ opacity: 0 }, 200)
-                        .then(() => {
-                            $container.html('').html(source.html);
-                            return $container.animateAsync({ opacity: 1 }, 200);
-                        })
-                        .then(() => {
-                            // Trigger after callback and run methods
-                            GUI.fire(GUI.broker, 'route:rendered', source);
-                            resolve(true);
-                        })
-                        .catch(() => {
-                            // Fallback if animation fails
-                            $container.html(source.html);
-                            resolve(true);
-                        });
-                });
+                    // Update content
+                    $container.html(source.html);
+                    
+                    // Fade in
+                    await $container.animate({ opacity: 1 }, 200).promise();
+                    
+                    // Emit route rendered event
+                    gui.emit('route:rendered', source);
+                } catch (err) {
+                    // Fallback without animation
+                    $container.html(source.html);
+                    gui.emit('route:rendered', source);
+                }
             }
         };
     };
 
     return {
-        load: (sb) => {
-            const router = createRouter();
+        load: async (options) => {
+            gui.log('FearRouter: Loading...');
             
-            return router
-                .init()
-                .then(() => { GUI.FearRouter = router;})
-                .catch(err => {
-                    GUI.warn('FearRouter load failed:', err);
-                    throw err;
-                });
+            const router = new FearRouter();
+            await router.init()
+                .then(() => {
+                    gui.router = router;
+                                    gui.log('FearRouter: Loaded successfully');
+                })
+                .catch((err) => {
+                gui.warn('FearRouter load failed:', err);
+                throw err;
+                })
+        },
+        
+        unload: () => {
+            gui.log('FearRouter: Unloading...');
+            $(window).off('hashchange popstate');
         }
     };
 });
 
+// ============================================
 // Methods Module
-$.FEAR.create('FearMethods', (GUI) => {
+// ============================================
+$.FEAR.create('FearMethods', (gui) => {
     
-    const createMethodsManager = () => {
-        return {
-            /**
-             * Convert images to SVG
-             * @return {Promise<boolean>} resolves when conversion is complete
-             */
-            imgToSvg: function() {
-                const $images = GUI.$('img.html');
-                const promises = [];
+    const createMethodsManager = () => ({
+        imgToSvg: async () => {
+            const $images = gui.$('img.svg');
+            const promises = [];
 
-                $images.each((index, img) => {
-                    const $img = GUI.$(img);
-                    const imgClass = $img.attr('class');
-                    const imgURL = $img.attr('src');
+            $images.each((index, img) => {
+                const $img = $(img);
+                const imgClass = $img.attr('class');
+                const imgURL = $img.attr('src');
 
-                    const promise = GUI.fetch(imgURL, { dataType: 'xml' })
-                        .then(response => {
-                            const $svg = GUI.$(response.data).find('svg');
-                            if (imgClass) {
-                                $svg.attr('class', `${imgClass} replaced-svg`);
-                            }
-                            $svg.removeAttr('xmlns:a');
-                            $img.replaceWith($svg);
-                        })
-                        .catch(err => GUI.warn('SVG conversion failed for:', imgURL, err));
-                    
-                    promises.push(promise);
-                });
-
-                return Promise.all(promises);
-            },
-
-            /**
-             * Apply background images from data attributes
-             * @return {Promise<boolean>} resolves when images are applied
-             */
-            applyImages: function() {
-                return new Promise((resolve) => {
-                    const $elements = GUI.$('*[data-img-url]');
-                    
-                    $elements.each((index, element) => {
-                        const $el = GUI.$(element);
-                        const url = $el.data('img-url');
-                        $el.css('background-image', `url(${url})`);
-                    });
-                    
-                    resolve(true);
-                });
-            },
-
-            /**
-             * Initialize location links
-             * @return {Promise<boolean>} resolves when links are bound
-             */
-            bindLocationLinks: function() {
-                const $buttons = GUI.$('.href_location');
-                const promises = [];
-
-                $buttons.each((index, button) => {
-                    const promise = GUI.on(button, 'click', (e) => {
-                        e.preventDefault();
-                        const address = GUI.$(e.target).text().replace(/\s/g, '+');
-                        window.open(`https://maps.google.com/?q=${address}`);
-                    });
-                    promises.push(promise);
-                });
-
-                return Promise.all(promises);
-            },
-
-            /**
-             * Initialize custom cursor
-             * @return {Promise<boolean>} resolves when cursor is initialized
-             */
-            initCursor: function() {
-                return new Promise((resolve) => {
-                    const $cursor = GUI.$('.mouse-cursor');
-                    
-                    if ($cursor.length === 0) {
-                        resolve(false);
-                        return;
-                    }
-
-                    const cursorInner = document.querySelector('.cursor-inner');
-                    const cursorOuter = document.querySelector('.cursor-outer');
-                    
-                    if (!cursorInner || !cursorOuter) {
-                        resolve(false);
-                        return;
-                    }
-
-                    const updateCursor = (e) => {
-                        const x = e.clientX + 'px';
-                        const y = e.clientY + 'px';
-                        
-                        cursorInner.style.transform = `translate(${x}, ${y})`;
-                        cursorOuter.style.transform = `translate(${x}, ${y})`;
-                    };
-
-                    const addHover = () => {
-                        cursorInner.classList.add('cursor-hover');
-                        cursorOuter.classList.add('cursor-hover');
-                    };
-
-                    const removeHover = () => {
-                        cursorInner.classList.remove('cursor-hover');
-                        cursorOuter.classList.remove('cursor-hover');
-                    };
-
-                    Promise.all([
-                        GUI.on(window, 'mousemove', updateCursor),
-                        GUI.on(document.body, 'mouseenter', addHover, { 
-                            selector: 'a, .fear_topbar .trigger, .cursor-pointer' 
-                        }),
-                        GUI.on(document.body, 'mouseleave', removeHover, { 
-                            selector: 'a, .fear_topbar .trigger, .cursor-pointer' 
-                        })
-                    ])
-                    .then(() => {
-                        cursorInner.style.visibility = 'visible';
-                        cursorOuter.style.visibility = 'visible';
-                        resolve(true);
+                const promise = gui.fetch(imgURL, { dataType: 'xml' })
+                    .then(response => {
+                        const $svg = $(response.data).find('svg');
+                        if (imgClass) {
+                            $svg.attr('class', `${imgClass} replaced-svg`);
+                        }
+                        $svg.removeAttr('xmlns:a');
+                        $img.replaceWith($svg);
                     })
-                    .catch(() => resolve(false));
-                });
-            },
-
-            /**
-             * Initialize contact form
-             * @return {Promise<boolean>} resolves when form is ready
-             */
-            initContactForm: function() {
-                const $submitBtn = GUI.$('.contact_form #send_message');
+                    .catch(err => gui.warn('SVG conversion failed for:', imgURL, err));
                 
-                return GUI.on($submitBtn[0], 'click', (e) => {
-                    e.preventDefault();
-                    
-                    const formData = {
-                        name: GUI.$('.contact_form #name').val(),
-                        email: GUI.$('.contact_form #email').val(),
-                        message: GUI.$('.contact_form #message').val(),
-                        subject: GUI.$('.contact_form #subject').val()
-                    };
+                promises.push(promise);
+            });
 
-                    const $returnMessage = GUI.$('.contact_form .returnmessage');
-                    const successMsg = $returnMessage.data('success');
+            await Promise.all(promises);
+        },
 
-                    $returnMessage.empty();
+        applyImages: async () => {
+            const $elements = gui.$('*[data-img-url]');
+            
+            $elements.each((index, element) => {
+                const $el = $(element);
+                const url = $el.data('img-url');
+                $el.css('background-image', `url(${url})`);
+            });
+        },
 
-                    // Validation
-                    if (!formData.name || !formData.email || !formData.message) {
-                        GUI.$('div.empty_notice').slideDown(500).delay(2000).slideUp(500);
-                        return;
-                    }
+        bindLocationLinks: async () => {
+            const $buttons = gui.$('.href_location');
 
-                    // Submit form
-                    GUI.fetch('http://fear.master.com/fear/GUI/mail/contact', {
+            $buttons.on('click', (e) => {
+                e.preventDefault();
+                const address = $(e.currentTarget).text().replace(/\s/g, '+');
+                window.open(`https://maps.google.com/?q=${address}`);
+            });
+        },
+
+        initCursor: async () => {
+            const $cursor = gui.$('.mouse-cursor');
+            
+            if ($cursor.length === 0) return false;
+
+            const cursorInner = document.querySelector('.cursor-inner');
+            const cursorOuter = document.querySelector('.cursor-outer');
+            
+            if (!cursorInner || !cursorOuter) return false;
+
+           // Subscribe to cursor events via broker
+            gui.add('cursor:move', (e) => {
+                cursorInner.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+                cursorOuter.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+            });
+            gui.add('cursor:hover:enter', () => {
+                cursorInner.classList.add('cursor-hover');
+                cursorOuter.classList.add('cursor-hover');
+            });
+            gui.add('cursor:hover:leave', () => {
+                cursorInner.classList.remove('cursor-hover');
+                cursorOuter.classList.remove('cursor-hover');
+            });
+
+            // Wire up DOM events to emit broker events
+            $(window).on('mousemove', (e) => {
+                gui.emit('cursor:move', { 
+                    clientX: e.clientX, 
+                    clientY: e.clientY 
+                });
+            });
+
+            $(document.body).on('mouseenter', 'a, .fear_topbar .trigger, .cursor-pointer', () => gui.emit('cursor:hover:enter'));
+            $(document.body).on('mouseleave', 'a, .fear_topbar .trigger, .cursor-pointer', () => gui.emit('cursor:hover:leave'));
+
+            cursorInner.style.visibility = 'visible';
+            cursorOuter.style.visibility = 'visible';
+            
+            return true;
+        },
+
+        initContactForm: async () => {
+            const $submitBtn = gui.$('.contact_form #send_message');
+            
+            $submitBtn.on('click', async (e) => {
+                e.preventDefault();
+                
+                const formData = {
+                    name: gui.$('.contact_form #name').val(),
+                    email: gui.$('.contact_form #email').val(),
+                    message: gui.$('.contact_form #message').val(),
+                    subject: gui.$('.contact_form #subject').val()
+                };
+
+                const $returnMessage = gui.$('.contact_form .returnmessage');
+                const successMsg = $returnMessage.data('success');
+
+                $returnMessage.empty();
+
+                // Validation
+                if (!formData.name || !formData.email || !formData.message) {
+                    gui.$('div.empty_notice').slideDown(500).delay(2000).slideUp(500);
+                    return;
+                }
+
+                try {
+                    const response = await gui.fetch('http://fear.master.com/fear/api/mail/contact', {
                         method: 'POST',
                         data: {
                             ajax_name: formData.name,
@@ -446,116 +360,137 @@ $.FEAR.create('FearMethods', (GUI) => {
                             ajax_subject: formData.subject,
                             ajax_source: 'gdrea.fear@gmail.com'
                         }
-                    })
-                    .then(response => {
-                        $returnMessage.html(response.data);
-                        
-                        if ($returnMessage.find('.contact_error').length) {
-                            $returnMessage.slideDown(500).delay(2000).slideUp(500);
-                        } else {
-                            $returnMessage.html(`<span class='contact_success'>${successMsg}</span>`);
-                            $returnMessage.slideDown(500).delay(4000).slideUp(500);
-                            GUI.$('#contact_form')[0].reset();
-                        }
-                    })
-                    .catch(err => {
-                        GUI.warn('Contact form submission failed:', err);
-                        $returnMessage.html('<span class="contact_error">Submission failed. Please try again.</span>');
-                        $returnMessage.slideDown(500).delay(3000).slideUp(500);
                     });
-                });
-            }
-        };
-    };
-
-    return {
-        load: function(options) {
-            const methods = createMethodsManager();
-            
-            return Promise.resolve()
-                .then(() => {
-                    GUI.methods = methods;
                     
-                    // Listen for route changes to reinitialize methods
-                    GUI.add('route:rendered', () => {
-                        return Promise.all([
-                            methods.imgToSvg(),
-                            methods.applyImages(),
-                            methods.bindLocationLinks()
-                        ]);
-                    });
-                })
-                .catch(err => {
-                    GUI.warn('FearMethods load failed:', err);
-                    throw err;
-                });
-        }
-    };
-});
-
-// Navigation Module
-$.FEAR.create('FearNavigation', (GUI) => {
-    
-    return {
-        load: function(options) {
-            const $buttons = GUI.$('.transition_link a');
-            const $listItems = GUI.$('.transition_link li');
-
-            return Promise.all(
-                $buttons.map((index, button) => {
-                    return GUI.on(button, 'click', (e) => {
-                        const $element = GUI.$(e.target);
-                        const href = $element.attr('href');
-                        const $parent = $element.closest('li');
-
-                        if (!$parent.hasClass('active')) {
-                            $listItems.removeClass('active');
-                            $parent.addClass('active');
-                        }
-                    });
-                })
-            )
-            .catch(err => {
-                GUI.warn('FearNavigation load failed:', err);
-                throw err;
+                    $returnMessage.html(response.data);
+                    
+                    if ($returnMessage.find('.contact_error').length) {
+                        $returnMessage.slideDown(500).delay(2000).slideUp(500);
+                    } else {
+                        $returnMessage.html(`<span class='contact_success'>${successMsg}</span>`);
+                        $returnMessage.slideDown(500).delay(4000).slideUp(500);
+                        gui.$('#contact_form')[0].reset();
+                    }
+                } catch (err) {
+                    gui.warn('Contact form submission failed:', err);
+                    $returnMessage.html('<span class="contact_error">Submission failed. Please try again.</span>');
+                    $returnMessage.slideDown(500).delay(3000).slideUp(500);
+                }
             });
         }
+    });
+
+    return {
+        load: async (options) => {
+            gui.log('FearMethods: Loading...');
+            
+            const methods = createMethodsManager();
+            
+            // Store methods reference
+            gui.methods = methods;
+            $.gui.methods = methods;
+            
+            // Listen for route changes to reinitialize methods
+            gui.add('route:rendered', async () => {
+                await methods.imgToSvg();
+                await methods.applyImages();
+                await methods.bindLocationLinks();
+            });
+            
+            gui.log('FearMethods: Loaded successfully');
+        },
+        
+        unload: () => {
+            gui.log('FearMethods: Unloading...');
+        }
     };
 });
 
+// ============================================
+// Navigation Module
+// ============================================
+$.FEAR.create('FearNavigation', (gui) => {
+    
+    return {
+        load: async (options) => {
+            gui.log('FearNavigation: Loading...');
+            
+            const $buttons = gui.$('.transition_link a');
+            const $listItems = gui.$('.transition_link li');
+
+            $buttons.on('click', (e) => {
+                const $element = $(e.currentTarget);
+                const $parent = $element.closest('li');
+
+                if (!$parent.hasClass('active')) {
+                    $listItems.removeClass('active');
+                    $parent.addClass('active');
+                }
+            });
+            
+            gui.log('FearNavigation: Loaded successfully');
+        },
+        
+        unload: () => {
+            gui.log('FearNavigation: Unloading...');
+            gui.$('.transition_link a').off('click');
+        }
+    };
+});
+
+// ============================================
 // Main App Initialization
-const initFearApp = () => {
+// ============================================
+const initFearApp = async () => {
     // Configure GUI
     $.FEAR.configure({
         logLevel: 1,
+        name: 'FEAR_SPA',
         mode: 'single',
         animations: true
     });
-    // Start modules
-    return $.FEAR.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation'])
-        .then(() => {
-            console.log('FEAR SPA INITIALIZED');
-            return FEAR;
-        })
-        .catch(error => {
-            console.error('FEAR SPA INITIALIZATION FAILED:', error);
-            throw error;
-        });
-};
 
-// Auto-initialize when DOM is ready
-if (typeof window !== 'undefined') {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            window.FEAR = initFearApp()
-                .then(() => console.log('FEAR SPA LOADED'))
-                .catch(() => console.log('Error Loading FEAR'))
-                .finally(() => console.log('FEAR SPA INITIALIZATION COMPLETE'));
-        });
-    } else {
-        window.FEAR = initFearApp()
-            .then(() => console.log('FEAR SPA LOADED'))
-            .catch(() => console.log('Error Loading FEAR'))
-            .finally(() => console.log('FEAR SPA INITIALIZATION COMPLETE'));
+    try {
+        // Start all modules
+        await $.FEAR.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation']);
+        
+        $.FEAR.log('%c FEAR SPA INITIALIZED ', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
+        
+        return $.FEAR;
+    } catch (error) {
+        console.error('FEAR SPA INITIALIZATION FAILED:', error);
+        throw error;
     }
+};
+})()
+// fear-app.js - FEAR SPA Application using jQuery GUI Framework
+
+
+
+// ============================================
+// Auto-initialize when DOM is ready
+// ============================================
+if (typeof window !== 'undefined') {
+    $(document).ready(() => {
+        window.FEAR = initFearApp()
+            .then(() => {
+                console.log('✓ FEAR SPA LOADED');
+                
+                // Expose global API
+                window.FEAR = {
+                    gui: $.gui,
+                    stop: () => $.gui.stop(),
+                    restart: () => $.gui.stop().then(() => initFearApp()),
+                    version: '1.0.1'
+                };
+            })
+            .catch((err) => {
+                console.error('✗ Error Loading FEAR:', err);
+            });
+    });
+}
+
+// Export for module systems
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { initFearApp, FEAR: $.gui };
 }

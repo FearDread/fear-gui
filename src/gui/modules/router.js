@@ -1,4 +1,6 @@
-export const Router = ((FEAR) => {
+import FEAR from "../core/gui";
+
+export const Router = FEAR.create('FearRouter', (GUI) => {
   'use strict';
 
   /**
@@ -276,13 +278,13 @@ export const Router = ((FEAR) => {
   };
 
   return {
-    load: (GUI) => {
+    load: (sb) => {
     // Ensure net namespace exists
     if (!GUI.Router) {
       GUI.Router = new Router();
     }
   },
-    unload: (GUI) => {
+    unload: (sb) => {
     if (GUI.Router) {
       // Clean up router
       GUI.Router.flush();

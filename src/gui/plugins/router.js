@@ -2,7 +2,7 @@ import Utils from "./utils";
 import Cache from "./cache";
 import Metrics from "./metrics";
 
-export const Router = (() => {
+export const Router = FEAR.use(GUI => {
   // Private instance variable
   let instance = null;
 
@@ -245,7 +245,7 @@ export const Router = (() => {
   }
 
   // Public singleton interface
-  return {
+  Router.prototype = {
     // Initialize or get existing instance
     getInstance: function(element, options) {
       if (!instance) {
@@ -462,7 +462,15 @@ export const Router = (() => {
       return instance;
     }
   };
-})();
+
+  return {
+    load: (sb) => {
+      sb.router = new Router()
+
+      return sb;
+    }
+  }
+});
 
 /* 
   // Simple Router System
