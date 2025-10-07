@@ -9,6 +9,26 @@ export const utils = {
 
     slice: Array.prototype.slice,
 
+    isObj: (obj) => $.isPlainObject(obj),
+
+    isArr: (arr) => $.isArray(arr),
+
+    isFunc: (obj) => !!(obj && obj.constructor && obj.call && obj.apply),
+
+    isStr: (str) => typeof str === 'string',
+
+    isType: (type, val, name) => {
+      if (typeof val !== type) {
+        return `Error :: ${name} must be of type ${type}`;
+      }
+    },
+
+    hasArgs: (fn, idx = 1) => {
+      const match = fn.toString().match(/\(([^)]*)\)/);
+      const args = match ? match[1].match(/[^\s,]+/g) || [] : [];
+      return args.length >= idx;
+    },
+
     /**
      * Attach child object prototype to parent object prototype 
      *
@@ -16,7 +36,7 @@ export const utils = {
      * @param parent {object} - parent object prototype 
      * @return child {object} - combined child & parent prototypes 
     **/
-    extend: (child, parent) => {
+    inject: (child, parent) => {
         var key;
 
         for (key in parent) { 
@@ -37,74 +57,6 @@ export const utils = {
 
         return child;
     },
-
-    /**
-     * Check number of arguments passed to   / method
-     *
-     * @param fn { } -   to test
-     * @param idx {int} - number of arguments to check for
-     * @return argument length {int} - number of arguments actually passed to  
-    **/
-    hasArgs: (fn, idx) => {
-        if (!idx || idx === null) {
-            idx = 1;
-        }
-
-        return this.args(fn).length >= idx;
-    },
-
-    /**
-    * Check if passed object is instance of Object
-    *
-    * @param obj {object} - object to check
-    * @return boolean
-    **/
-    isObj: (obj) => {
-        return $.isPlainObject(obj);
-    },
-
-    /**
-    * Check if passed value is Array 
-    *
-    * @param arr {array} - array to check
-    * @return boolean
-    **/
-    isArr: (arr) => {
-        return $.isArray(arr); 
-    },
-
-    /**
-    * Check if passed   is indeed type  
-    *
-    * @param obj {object} -   to check
-    * @return boolean
-    **/
-    isFunc: (obj) => {
-        return !!(obj && obj.constructor && obj.call && obj.apply);
-    },
-
-    /**
-    * Check typeof of passed value to name 
-    *
-    * @param type {string} - string type to check against 
-    * @return boolean
-    **/
-    isType: (type, val, name) => {
-        if (typeof val !== type) {
-            return 'Error :: ' + name + " must be of type " + type;
-        }
-    },
-
-    /**
-    * Check if valid string
-    *
-    * @param object - string to check
-    * @return boolean
-    **/
-    isStr: (str) => {
-        return (typeof str === 'string');
-    },
-
     /**
     * Check for retina display on device 
     *
@@ -379,6 +331,38 @@ export const utils = {
             id += Math.random().toString(36).substr(2);
         }
         return id.substr(0, length);
+    },
+
+    /**
+     * Task Runner Object 
+     * @return Promise
+     */
+    run: {
+      series: (tasks = []) => {
+        if (!tasks.length) return Promise.resolve([]);
+        
+        return tasks.reduce((p, task, idx) => 
+         
+            p.then(results => 
+            
+                Promise.resolve(task())
+              
+                .then(r => [...results, r])
+             
+                .catch(err => {
+                    const error = new Error(`Task ${idx} failed`);
+                    error.originalError = err;
+                    throw error;
+                })
+          ),
+          Promise.resolve([])
+        );
+      },
+      parallel: (tasks = []) => {
+        if (!tasks.length) return Promise.resolve([]);
+
+        return Promise.all(tasks.map(task => Promise.resolve(task())));
+      }
     }
 };
 
