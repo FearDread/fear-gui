@@ -310,11 +310,12 @@ export const SandBox = (() => {
         sandbox.loaded = () => new Promise((resolve) => $(window).on('load', resolve));
 
         return sandbox;
-    };
-        };
+        
+        }
+    }
     }
 })();
 
 export const createSandbox = () => new SandBox().create();
 
-export default SandBox;
+export default { SandBox, createSandbox };

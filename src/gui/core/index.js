@@ -1,9 +1,34 @@
 // example-usage.js - How to use the refactored FEAR GUI framework
 
-import { createGUI } from './gui';
+import { utils } from './utils';
 import { createRegistry } from './registry';
-import { Utils } from './utils';
+import { createBroker } from './broker';
+import { createGUI } from './gui';
+import { Metrics } from "../modules/metrics";
 
+  
+  // $.GUI - Constructor function (creates new instances)
+  $.FEAR = function(options) {
+    const instance = createGUI();
+    if (options) instance.configure(options);
+    return instance;
+  };
+
+  // Expose utilities on constructor
+  $.FEAR.utils = utils;
+  $.FEAR.createBroker = createBroker;
+  $.FEAR.createRegistry = createRegistry;
+  $.FEAR.Metrics = Metrics;
+  $.FEAR.version = '1.0.2';
+  
+  // $.gui - Singleton instance (auto-initialized)
+  $.fear = createGUI();
+  
+  // Also expose as window.GUI for non-jQuery access
+  window.FEAR = $.FEAR;
+  window.fear = $.fear;
+
+  /*
 // ============================================
 // 1. Initialize the GUI
 // ============================================
@@ -279,3 +304,4 @@ gui.create('completeExample', (sandbox) => {
 
 // Start the complete example
 await gui.start('completeExample');
+*/

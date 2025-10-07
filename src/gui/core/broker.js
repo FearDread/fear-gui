@@ -401,7 +401,7 @@ const Broker = (() => {
  * @returns {EventBroker} New broker instance
  */
 const createBroker = (options = {}) => {
-  return new Broker.create(options);
+  return new Broker(options);
 };
 
 // ==================== Static Convenience Methods ====================

@@ -2,7 +2,7 @@
 // ============================================
 // Core App Module
 // ============================================
-$.FEAR.create('FearCore', (gui) => {
+$.FEAR().create('FearCore', (gui) => {
     
     const createPreloader = () => ({
         init: async () => {
@@ -125,7 +125,7 @@ $.FEAR.create('FearCore', (gui) => {
 // ============================================
 // Router Module
 // ============================================
-$.FEAR.create('FearRouter', (gui) => {
+$.FEAR().create('FearRouter', (gui) => {
     
     const FearRouter = function() {
         this.routes = {
@@ -236,7 +236,7 @@ $.FEAR.create('FearRouter', (gui) => {
 // ============================================
 // Methods Module
 // ============================================
-$.FEAR.create('FearMethods', (gui) => {
+$.FEAR().create('FearMethods', (gui) => {
     
     const createMethodsManager = () => ({
         imgToSvg: async () => {
@@ -409,7 +409,7 @@ $.FEAR.create('FearMethods', (gui) => {
 // ============================================
 // Navigation Module
 // ============================================
-$.FEAR.create('FearNavigation', (gui) => {
+$.FEAR().create('FearNavigation', (gui) => {
     
     return {
         load: async (options) => {
@@ -438,59 +438,14 @@ $.FEAR.create('FearNavigation', (gui) => {
     };
 });
 
-// ============================================
-// Main App Initialization
-// ============================================
-const initFearApp = async () => {
     // Configure GUI
-    $.FEAR.configure({
+const App = $.FEAR().configure({
         logLevel: 1,
         name: 'FEAR_SPA',
         mode: 'single',
         animations: true
     });
-
-    try {
-        // Start all modules
-        await $.FEAR.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation']);
+App.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation']);
         
-        $.FEAR.log('%c FEAR SPA INITIALIZED ', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
-        
-        return $.FEAR;
-    } catch (error) {
-        console.error('FEAR SPA INITIALIZATION FAILED:', error);
-        throw error;
-    }
-};
-})()
-// fear-app.js - FEAR SPA Application using jQuery GUI Framework
-
-
-
-// ============================================
-// Auto-initialize when DOM is ready
-// ============================================
-if (typeof window !== 'undefined') {
-    $(document).ready(() => {
-        window.FEAR = initFearApp()
-            .then(() => {
-                console.log('✓ FEAR SPA LOADED');
-                
-                // Expose global API
-                window.FEAR = {
-                    gui: $.gui,
-                    stop: () => $.gui.stop(),
-                    restart: () => $.gui.stop().then(() => initFearApp()),
-                    version: '1.0.1'
-                };
-            })
-            .catch((err) => {
-                console.error('✗ Error Loading FEAR:', err);
-            });
-    });
-}
-
-// Export for module systems
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { initFearApp, FEAR: $.gui };
-}
+App.debug.log('%c FEAR SPA INITIALIZED ', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
+})(jQuery, window);

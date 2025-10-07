@@ -62,7 +62,7 @@ window.FEARPlugins = {
   $.FEAR.Broker = Broker;
   $.FEAR.Utils = Utils;
   $.FEAR.Plugins = window.FEARPlugins;
-
+  $.FEAR.GUI.use(window.FEARPlugins);
   // Auto-init elements
   $(function() {
     $('[data-fear]').each(function() {

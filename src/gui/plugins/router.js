@@ -1,8 +1,8 @@
-import Utils from "./utils";
-import Cache from "./cache";
-import Metrics from "./metrics";
+import Utils from "../../gui/utils";
+import Cache from "../modules/cache";
+import Metrics from "../modules/metrics";
 
-export const Router = FEAR.use(GUI => {
+export const Router = (() => {
   // Private instance variable
   let instance = null;
 
@@ -198,13 +198,9 @@ export const Router = FEAR.use(GUI => {
                   await route.callback.call(this, route);
                 }
 
-                // Reinitialize components
                 this.initComponents();
-
-                // Handle accessibility
                 this.handleAccessibility(route);
-
-                // Execute afterRouteChange callback
+                
                 if (this.options.callbacks.afterRouteChange) {
                   await this.options.callbacks.afterRouteChange.call(this, route.name, this.previousRoute);
                 }
@@ -245,7 +241,7 @@ export const Router = FEAR.use(GUI => {
   }
 
   // Public singleton interface
-  Router.prototype = {
+  return {
     // Initialize or get existing instance
     getInstance: function(element, options) {
       if (!instance) {
@@ -462,15 +458,7 @@ export const Router = FEAR.use(GUI => {
       return instance;
     }
   };
-
-  return {
-    load: (sb) => {
-      sb.router = new Router()
-
-      return sb;
-    }
-  }
-});
+})();
 
 /* 
   // Simple Router System

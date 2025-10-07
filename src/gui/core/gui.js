@@ -4,6 +4,7 @@ import { createRegistry } from './registry';
 import { createBroker } from './broker';
 import { createSandbox } from './sandbox';
 
+
 export const GUI = (($) => {
 
   return function() {
@@ -12,8 +13,8 @@ export const GUI = (($) => {
     if (typeof $ === 'undefined' || $ === null) {
       throw new Error('FEAR GUI requires jQuery library.');
     }
-    // GUI state
-    this.state = {
+    // GUI this.state
+    this.this.state = {
       config: {
         logLevel: 0,
         name: 'FEAR_GUI',
@@ -31,32 +32,32 @@ export const GUI = (($) => {
     };
 
     // Create module registry
-    this.registry = createRegistry(this.state.config);
+    this.registry = createRegistry(this.this.state.config);
     // Create broker and event system
     this.broker = createBroker();
 
-    // Debug logger
+    // self.debug logger
     this.debug = {
       level: 0,
       history: [],
       timeout: 5000,
 
       warn: (...args) => {
-        if (debug.level < 2) {
+        if (self.debug.level < 2) {
           const logArgs = ['WARN:', ...args];
-          debug._logger('warn', logArgs);
+          self.debug._logger('warn', logArgs);
         }
       },
 
       log: (...args) => {
-        if (debug.level < 1) {
-          const logArgs = ['Debug:', ...args];
-          debug._logger('log', logArgs);
+        if (self.debug.level < 1) {
+          const logArgs = ['self.debug:', ...args];
+          self.debug._logger('log', logArgs);
         }
       },
 
       _logger: (type, arr) => {
-        debug.history.push({ type, args: arr });
+        self.debug.history.push({ type, args: arr });
 
         if (console[type]?.apply) {
           console[type].apply(console, arr);
@@ -68,7 +69,7 @@ export const GUI = (($) => {
 
     // Private helpers
     this._runSandboxPlugins = (ev, sb) => {
-      const tasks = this.state.plugins
+      const tasks = this.this.state.plugins
         .filter(plugin => typeof plugin.plugin?.[ev] === 'function')
         .map(plugin => () => {
           const eventHandler = plugin.plugin[ev];
@@ -100,10 +101,10 @@ export const GUI = (($) => {
     this._createInstance = (moduleId, o) => {
       const { options: opt } = o;
       const id = o.instanceId || moduleId;
-      const module = state.modules[moduleId];
+      const module = this.this.state.modules[moduleId];
 
-      if (state.instances[id]) {
-        return Promise.resolve({ instance: state.instances[id], options: opt });
+      if (this.state.instances[id]) {
+        return Promise.resolve({ instance: this.state.instances[id], options: opt });
       }
 
       const iOpts = {
@@ -135,11 +136,11 @@ export const GUI = (($) => {
 
     this._startAll = (mods) => {
       if (!mods || mods === null) {
-        mods = Object.keys(state.modules);
+        mods = Object.keys(this.state.modules);
       }
 
       const startTasks = mods.map(moduleId => () =>
-        gui.start(moduleId, state.modules[moduleId].options)
+        gui.start(moduleId, this.state.modules[moduleId].options)
           .catch(err => {
             const moduleError = new Error(`Failed to start module '${moduleId}': ${err.message}`);
             moduleError.moduleId = moduleId;
@@ -172,16 +173,16 @@ export const GUI = (($) => {
 
     // Public API
     const gui = {
-      config: this.state.config,
-      debug,
-      registry,
-      broker,
+      config: self.state.config,
+      debug: self.debug,
+      registry: self.registry,
+      broker: self.broker,
       utils,
 
       configure: (options) => {
         if (options && utils.isObj(options)) {
-          state.config = utils.merge(state.config, options);
-          debug.level = state.config.logLevel || 0;
+          this.state.config = utils.merge(this.state.config, options);
+          self.debug.level = this.state.config.logLevel || 0;
         }
         return gui;
       },
@@ -192,16 +193,16 @@ export const GUI = (($) => {
           utils.isType('object', options, 'option parameter');
 
         if (error) {
-          debug.warn(`could not register module '${id}': ${error}`);
+          self.debug.warn(`could not register module '${id}': ${error}`);
           return gui;
         }
 
-        if (state.modules[id]) {
-          debug.log(`module ${id} was already registered`);
+        if (this.state.modules[id]) {
+          self.debug.log(`module ${id} was already registered`);
           return gui;
         }
 
-        state.modules[id] = { id, creator, options };
+        this.state.modules[id] = { id, creator, options };
         return gui;
       },
 
@@ -222,13 +223,13 @@ export const GUI = (($) => {
 
         const error = utils.isType('string', moduleId, 'module ID') ||
           utils.isType('object', opt, 'second parameter') ||
-          (!state.modules[moduleId] ? "module doesn't exist" : undefined);
+          (!this.state.modules[moduleId] ? "module doesn't exist" : undefined);
 
         if (error) {
           return Promise.reject(new Error(error));
         }
 
-        if (state.running[id] === true) {
+        if (this.state.running[id] === true) {
           return Promise.reject(new Error('module was already started'));
         }
 
@@ -240,39 +241,39 @@ export const GUI = (($) => {
 
               if (loadResult && typeof loadResult.then === 'function') {
                 return loadResult.then(() => {
-                  state.running[id] = true;
+                  this.state.running[id] = true;
                 });
               } else {
-                state.running[id] = true;
+                this.state.running[id] = true;
                 return Promise.resolve();
               }
             } else {
-              state.running[id] = true;
+              this.state.running[id] = true;
               return Promise.resolve();
             }
           })
           .catch(err => {
-            debug.warn(err);
+            self.debug.warn(err);
             throw new Error('could not start module: ' + err.message);
           });
       },
 
       stop: (id) => {
         if (arguments.length === 0 || typeof id === 'function') {
-          const moduleIds = Object.keys(state.instances);
+          const moduleIds = Object.keys(this.state.instances);
           return utils.run.parallel(moduleIds.map(moduleId => () => gui.stop(moduleId)));
         }
 
-        const instance = state.instances[id];
+        const instance = this.state.instances[id];
 
         if (!instance) {
           return Promise.resolve();
         }
 
-        delete state.instances[id];
+        delete this.state.instances[id];
         broker.remove(instance);
 
-        return runSandboxPlugins('unload', state.sandboxes[id])
+        return runSandboxPlugins('unload', this.state.sandboxes[id])
           .then(() => {
             if (instance.unload && typeof instance.unload === 'function') {
               const unloadResult = instance.unload();
@@ -284,7 +285,7 @@ export const GUI = (($) => {
             return Promise.resolve();
           })
           .then(() => {
-            delete state.running[id];
+            delete this.state.running[id];
           });
       },
 
@@ -302,7 +303,7 @@ export const GUI = (($) => {
             return gui;
           }
 
-          state.plugins.push({
+          this.state.plugins.push({
             creator: plugin,
             options: opt
           });
@@ -317,13 +318,13 @@ export const GUI = (($) => {
             return new plugin.fn(this, options);
           };
         } else {
-          debug.log('Error :: Missing ' + plugin + ' fn() method.');
+          self.debug.log('Error :: Missing ' + plugin + ' fn() method.');
         }
         return gui;
       },
 
       boot: () => {
-        const tasks = state.plugins
+        const tasks = this.state.plugins
           .filter(plugin => plugin.booted !== true)
           .map(plugin => () => {
             return new Promise((resolve, reject) => {
@@ -352,17 +353,29 @@ export const GUI = (($) => {
       },
 
       attach: async (imports) => {
-        debug.log('Dynamic async module loading.');
-        debug.log('Imports:', imports);
+        self.debug.log('Dynamic async module loading.');
+        self.debug.log('Imports:', imports);
       }
     };
 
-    debug.warn('GUI initialized', gui);
+    self.debug.warn('GUI initialized', gui);
 
     return gui;
   };
 })(jQuery);
 
+export const createGUI = () => new GUI();
+
 
 export const FEAR = ($) => new GUI($);
 export default FEAR;
+
+
+  // ============================================
+  // jQuery Integration
+  // ============================================
+
+
+
+
+  
