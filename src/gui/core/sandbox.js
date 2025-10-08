@@ -1,9 +1,8 @@
 import { utils } from "./utils";
 
-export const SandBox = (() => {
+export const SandBox = (function() {
     const DELIM = '__';
 
-    return function () {
         return {
             /**
              * Factory method to create a new sandbox instance
@@ -39,29 +38,16 @@ export const SandBox = (() => {
                 /**
                  * Promise-based fetch wrapper for jQuery.ajax
                  */
+
+                // jQuery fetch wrapper
                 sandbox.fetch = (url, settings = {}) => {
                     return new Promise((resolve, reject) => {
-                        const ajaxSettings = {
+                        $.ajax({
+                            url: typeof url === 'string' ? url : url.url,
                             ...settings,
-                            success: (data, textStatus, jqXHR) => {
-                                resolve({ data, textStatus, jqXHR });
-                            },
-                            error: (jqXHR, textStatus, errorThrown) => {
-                                const error = new Error(textStatus || 'Ajax request failed');
-                                error.jqXHR = jqXHR;
-                                error.textStatus = textStatus;
-                                error.errorThrown = errorThrown;
-                                reject(error);
-                            }
-                        };
-
-                        if (typeof url === 'string') {
-                            ajaxSettings.url = url;
-                        } else if (typeof url === 'object') {
-                            Object.assign(ajaxSettings, url);
-                        }
-
-                        $.ajax(ajaxSettings);
+                            success: (data, textStatus, jqXHR) => resolve({ data, textStatus, jqXHR }),
+                            error: (jqXHR, textStatus) => reject(new Error(textStatus || 'Ajax failed'))
+                        });
                     });
                 };
 
@@ -70,34 +56,18 @@ export const SandBox = (() => {
                  */
                 sandbox.query = (selector, context) => {
                     const $el = context && context.find ? context.find(selector) : $(selector);
-                    const $enhanced = Object.create($el);
 
-                    Object.setPrototypeOf($enhanced, $el);
-                    $enhanced.length = $el.length;
+                    $el.query = (sel) => sandbox.query(sel, $el);
+                    $el.create = (el) => document.createElement(el);
+                    $el.size = () => parseFloat(window.getComputedStyle($el[0] || $el).fontSize);
 
-                    $enhanced.query = (sel) => sandbox.query(sel, $el);
-
-                    $enhanced.create = (el) => {
-                        if (typeof el !== 'string') {
-                            sandbox.warn('Error :: Element must be type String.');
-                            return false;
-                        }
-                        return document.createElement(el);
-                    };
-
-                    $enhanced.size = () => {
-                        return parseFloat(
-                            window.getComputedStyle($el[0] || $el).fontSize
-                        );
-                    };
-
-                    $enhanced.animateAsync = (properties, duration, easing) => {
+                    $el.animateAsync = (properties, duration, easing) => {
                         return new Promise((resolve, reject) => {
                             try {
                                 $el.animate(properties, {
                                     duration: duration,
                                     easing: easing,
-                                    complete: () => resolve($enhanced),
+                                    complete: () => resolve($el),
                                     fail: (error) => reject(error)
                                 });
                             } catch (error) {
@@ -106,13 +76,12 @@ export const SandBox = (() => {
                         });
                     };
 
-                    $enhanced.onAsync = (event, selector) => {
+                    $el.onAsync = (event, selector) => {
                         return new Promise((resolve) => {
                             const handler = (e) => {
                                 $el.off(event, selector, handler);
                                 resolve(e);
                             };
-
                             if (selector) {
                                 $el.on(event, selector, handler);
                             } else {
@@ -121,7 +90,7 @@ export const SandBox = (() => {
                         });
                     };
 
-                    return $enhanced;
+                    return $el;
                 };
 
                 // Shorthand for query
@@ -130,17 +99,9 @@ export const SandBox = (() => {
                 /**
                  * Promise-based timeout
                  */
-                sandbox.timeout = (ms, fn) => {
-                    return new Promise((resolve) => {
-                        setTimeout(() => {
-                            if (fn && typeof fn === 'function') {
-                                resolve(fn());
-                            } else {
-                                resolve();
-                            }
-                        }, ms);
-                    });
-                };
+                sandbox.timeout = (ms, fn) => new Promise((resolve) => {
+                    setTimeout(() => resolve(fn && typeof fn === 'function' ? fn() : undefined), ms);
+                });
 
                 /**
                  * Promise-based interval with cancellation support
@@ -182,14 +143,6 @@ export const SandBox = (() => {
                         },
                         promise: promise
                     };
-                };
-
-                /**
-                 * Get window location from stored reference
-                 */
-                sandbox.getLocation = () => {
-                    const win = $gui.config.win;
-                    return win && win.location;
                 };
 
                 /**
@@ -301,7 +254,7 @@ export const SandBox = (() => {
                     });
                 };
 
-                // Logging utilities
+                sandbox.getLocation = () => $gui.config.win && win.location;
                 sandbox.log = (...args) => $gui.debug.log(...args);
                 sandbox.warn = (...args) => $gui.debug.warn(...args);
 
@@ -310,9 +263,8 @@ export const SandBox = (() => {
                 sandbox.loaded = () => new Promise((resolve) => $(window).on('load', resolve));
 
                 return sandbox;
-            };
+            }
         };
-    }
 })();
 
 export const createSandbox = () => new SandBox().create();

@@ -18,9 +18,7 @@ export const Broker = function(options = {}) {
 
   // ==================== Private Methods ====================
   this._delete = (channel, callback, context) => {
-    if (!this.channels[channel]) {
-      return [];
-    }
+    if (!this.channels[channel]) return [];
 
     const originalLength = this.channels[channel].length;
 
@@ -33,7 +31,7 @@ export const Broker = function(options = {}) {
 
     const removed = originalLength - this.channels[channel].length;
     if (removed > 0) {
-      log(`Removed ${removed} subscription(s) from '${channel}'`);
+      utils.log(`Removed ${removed} subscription(s) from '${channel}'`);
     }
 
     return this.channels[channel];
@@ -83,6 +81,7 @@ export const Broker = function(options = {}) {
   // ==================== Public this ====================
 
   return {
+    create: () => { return this },
     /**
      * Subscribe to a channel
      */
@@ -347,7 +346,7 @@ export const Broker = function(options = {}) {
     /**
      * Get all active this.channels
      */
-    getthis.channels: () => {
+    getchannels: () => {
       return Object.keys(this.channels).filter(channel =>
         this.channels[channel] && this.channels[channel].length > 0
       );
@@ -360,7 +359,8 @@ export const Broker = function(options = {}) {
       return (this.channels[channel] && this.channels[channel].length) || 0;
     }
   };
-
 };
-export const createBroker = new Broker();
+
+
+export const createBroker = new Broker().create();
 export default { Broker, createBroker };

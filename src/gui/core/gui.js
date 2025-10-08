@@ -5,22 +5,11 @@ import { createRegistry } from './registry';
 import { createBroker } from './broker';
 import { createSandbox } from './sandbox';
 
-export const GUI = function () {
+export const GUI = (function () {
 
     const self = this;
-
-    if (typeof $ === 'undefined' || $ === null) {
-      throw new Error('FEAR GUI requires jQuery library.');
-    }
-
-    this.config = {
-        logLevel: 0,
-        name: 'FEAR_GUI',
-        mode: 'single',
-        version: '1.0.1',
-        jquery: true,
-        animations: false
-    };
+    const debug = { history: [], level: this.config.logLevel, timeout: 5000, warn: utils.logger(debug),log: utils.logger(debug) }
+    this.config = { logLevel: 0, name: 'FEAR_GUI', version: '2.0.0' };
     // GUI state
     this.state = {
       modules: {},
@@ -30,90 +19,38 @@ export const GUI = function () {
       running: {},
       imports: []
     };
-    // Create module registry
-    this.registry = createRegistry(this.this.state.config);
+
     // Create broker and event system
-    this.broker = createBroker();
+    this.broker = new Broker().create();
+    this.registry = new Registry().create(this.state.config);
     this.debug = {
       level: 0,
       history: [],
       timeout: 5000,
-
-      warn: (...args) => {
-
-        if (this.debug.level < 2) {
-          const logArgs = ['WARN:', ...args];
-          this.debug._logger('warn', logArgs);
-
-        }
-      },
-
-      log: (...args) => {
-        if (this.debug.level < 1) {
-          const logArgs = ['this.debug:', ...args];
-          this.debug._logger('log', logArgs);
-      },
-
-      _logger: (type, arr) => {
-
-        this.debug.history.push({ type, args: arr });
-
-
-        if (console[type]?.apply) {
-          console[type].apply(console, arr);
-        } else {
-          console[type](arr);
-        }
-      }
+      warn: utils.warn,
+      log: utils.logger(this.debug)
     };
+
     // Private helpers
-    this._runSandboxPlugins = (ev, sb) => {
-      const tasks = this.this.state.plugins
-        .filter(plugin => typeof plugin.plugin?.[ev] === 'function')
-        .map(plugin => () => {
-          const eventHandler = plugin.plugin[ev];
-
-          return new Promise((resolve, reject) => {
-            try {
-              if (utils.hasArgs(eventHandler, 3)) {
-                eventHandler(sb, plugin.options, (err) => {
-                  err ? reject(err) : resolve();
-                });
-              } else {
-                const result = eventHandler(sb, plugin.options);
-
-                if (result && typeof result.then === 'function') {
-                  result.then(resolve, reject);
-                } else {
-                  resolve();
-                }
-              }
-            } catch (err) {
-              reject(err);
-            }
-          });
-        });
+    this._runInstPlugins = (handler, $gui) => {
+      const tasks = this.state.plugins
+        .filter(p => typeof p.plugin?.[handler] === 'function')
+        .map(p => () => Promise.resolve(p.plugin[handler]($gui, p.options)));
 
       return utils.run.series(tasks);
     };
 
-    this._createInstance = (moduleId, o) => {
-      const { options: opt } = o;
-      const id = o.instanceId || moduleId;
-      const module = this.this.state.modules[moduleId];
-
+    this._createInst = (moduleId, opts) => {
+      const id = opts.instanceId || moduleId;
       if (this.state.instances[id]) {
-        return Promise.resolve({ instance: this.state.instances[id], options: opt });
+        return Promise.resolve({ instance: state.instances[id], options: opts.options });
       }
 
-      const iOpts = {
-        ...module.options,
-        ...opt
-      };
+      const module = this.state.modules[moduleId];
+      const iOpts = { ...module.options, ...opts.options };
+      const sb = new SandBox().create(gui, id, iOpts, moduleId);
 
-      const sb = createSandbox(gui, id, iOpts, moduleId);
-
-      return this._runSandboxPlugins('load', sb)
+      return this._runInstPlugins('load', sb)
         .then(() => {
           const instance = new module.creator(sb);
 
@@ -133,41 +70,12 @@ export const GUI = function () {
         });
     };
 
-    this._startAll = (mods) => {
-      if (!mods || mods === null) {
-        mods = Object.keys(this.state.modules);
-      }
+    this._startInst = (mods) => {
+      if (!mods) mods = Object.keys(this.state.modules);
 
-      const startTasks = mods.map(moduleId => () =>
-        gui.start(moduleId, this.state.modules[moduleId].options)
-          .catch(err => {
-            const moduleError = new Error(`Failed to start module '${moduleId}': ${err.message}`);
-            moduleError.moduleId = moduleId;
-            moduleError.originalError = err;
-            throw moduleError;
-          })
-      );
+      const tasks = mods.map(mid => () => self.start(mid, self.state.modules[mid].options));
 
-      return utils.run.parallel(startTasks)
-        .catch(error => {
-          if (error.errors) {
-            const moduleErrors = {};
-            const failedModules = [];
-
-            error.errors.forEach((err, index) => {
-              if (err) {
-                const moduleId = mods[index];
-                moduleErrors[moduleId] = err;
-                failedModules.push(`'${moduleId}'`);
-              }
-            });
-
-            const aggregatedError = new Error(`errors occurred in the following modules: ${failedModules.join(', ')}`);
-            aggregatedError.moduleErrors = moduleErrors;
-            throw aggregatedError;
-          }
-          throw error;
-        });
+      return utils.run.parallel(tasks);
     };
 
     // Public API
@@ -175,8 +83,12 @@ export const GUI = function () {
       configure: (options) => {
         if (options && utils.isObj(options)) {
           this.config = utils.merge(this.config, options);
-          this.debug.level = this.config.logLevel || 0;
+          this.registry.setGlobal(this.config);
+
+          debug.level = this.config.logLevel || 0;
         }
+
+        return this;
       },
 
       create: (id, creator, options = {}) => {
@@ -185,50 +97,34 @@ export const GUI = function () {
           utils.isType('object', options, 'option parameter');
 
         if (error) {
-
-          this.debug.warn(`could not register module '${id}': ${error}`);
+          debug.warn(`could not register module '${id}': ${error}`);
           return this;
         }
 
-        if (state.modules[id]) {
-          this.debug.log(`module ${id} was already registered`);
-          return this;
-        }
-
-        state.modules[id] = { id, creator, options };
+        this.state.modules[id] = { id, creator, options };
         return this;
-
       },
 
       start: (moduleId, opt = {}) => {
-        if (arguments.length === 0) {
-          return this._startAll();
-        }
-
-        if (moduleId instanceof Array) {
-          return this._startAll(moduleId);
-        }
-
-        if (typeof moduleId === 'function') {
-          return this._startAll();
-        }
-
         const id = opt.instanceId || moduleId;
-
         const error = utils.isType('string', moduleId, 'module ID') ||
           utils.isType('object', opt, 'second parameter') ||
           (!this.state.modules[moduleId] ? "module doesn't exist" : undefined);
 
-        if (error) {
-          return Promise.reject(new Error(error));
-        }
+        if (!moduleId) return this._startInst();
+
+        if (utils.isArr(moduleId)) return this._startInst(moduleId);
+
+        if (utils.isFunc(moduleId)) return this._startInst();
+
+        if (error) return Promise.reject(new Error(error));
 
         if (this.state.running[id] === true) {
           return Promise.reject(new Error('module was already started'));
         }
 
         return this.boot()
-          .then(() => createInstance(moduleId, opt))
+          .then(() => self._createInst(moduleId, opt))
           .then(({ instance, options }) => {
             if (instance.load && typeof instance.load === 'function') {
               const loadResult = instance.load(options);
@@ -247,41 +143,35 @@ export const GUI = function () {
             }
           })
           .catch(err => {
-            self.debug.warn(err);
-
+            debug.warn(err);
             throw new Error('could not start module: ' + err.message);
           });
       },
 
       stop: (id) => {
         if (arguments.length === 0 || typeof id === 'function') {
-          const moduleIds = Object.keys(this.state.instances);
-          return utils.run.parallel(moduleIds.map(moduleId => () => gui.stop(moduleId)));
+          const moduleIds = Object.keys(state.instances);
+          return utils.run.parallel(moduleIds.map(mid => () => gui.stop(mid)));
         }
-
-        const instance = this.state.instances[id];
-
-        if (!instance) {
-          return Promise.resolve();
-        }
-
-        delete this.state.instances[id];
+        
+        const instance = state.instances[id];
+        if (!instance) return Promise.resolve();
+        
+        delete state.instances[id];
         broker.remove(instance);
-
-        return runSandboxPlugins('unload', this.state.sandboxes[id])
+        registry.unregister(id);
+        
+        return runSandboxPlugins('unload', state.sandboxes[id])
           .then(() => {
             if (instance.unload && typeof instance.unload === 'function') {
               const unloadResult = instance.unload();
-
               if (unloadResult && typeof unloadResult.then === 'function') {
                 return unloadResult;
               }
             }
             return Promise.resolve();
           })
-          .then(() => {
-            delete this.state.running[id];
-          });
+          .then(() => { delete state.running[id]; });
       },
 
       use: (plugin, opt) => {
@@ -354,7 +244,7 @@ export const GUI = function () {
 
       }
     };
-};
+})();
 export const createGUI = () => new GUI();
 export { GUI as FEAR } 
 export default { FEAR, createGUI };

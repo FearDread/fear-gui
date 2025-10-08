@@ -18,15 +18,15 @@ export const utils = {
     isStr: (str) => typeof str === 'string',
 
     isType: (type, val, name) => {
-      if (typeof val !== type) {
-        return `Error :: ${name} must be of type ${type}`;
-      }
+        if (typeof val !== type) {
+            return `Error :: ${name} must be of type ${type}`;
+        }
     },
 
     hasArgs: (fn, idx = 1) => {
-      const match = fn.toString().match(/\(([^)]*)\)/);
-      const args = match ? match[1].match(/[^\s,]+/g) || [] : [];
-      return args.length >= idx;
+        const match = fn.toString().match(/\(([^)]*)\)/);
+        const args = match ? match[1].match(/[^\s,]+/g) || [] : [];
+        return args.length >= idx;
     },
 
     /**
@@ -39,16 +39,16 @@ export const utils = {
     inject: (child, parent) => {
         var key;
 
-        for (key in parent) { 
+        for (key in parent) {
 
             if (utils.hasProp.call(parent, key)) {
-                child[key] = parent[key]; 
-            } 
+                child[key] = parent[key];
+            }
         }
 
-          function ctor() { 
-            this.constructor = child; 
-            }
+        function ctor() {
+            this.constructor = child;
+        }
 
         ctor.prototype = parent.prototype;
 
@@ -63,7 +63,7 @@ export const utils = {
     * @return boolean
     **/
     isRetina: () => {
-      return (window.retina || window.devicePixelRatio > 1);
+        return (window.retina || window.devicePixelRatio > 1);
     },
 
     /**
@@ -105,7 +105,7 @@ export const utils = {
     getPxValue: (width, unit) => {
         var value;
 
-        switch(unit){
+        switch (unit) {
             case "em":
                 value = this.convertToEm(width);
                 break;
@@ -128,7 +128,7 @@ export const utils = {
     * @param max - int max number of range
     * @return int
     **/
-    rand:  (min, max) => {
+    rand: (min, max) => {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     },
 
@@ -138,12 +138,12 @@ export const utils = {
     * @param fn { } - the   to get arguments from 
     * @return {array}  
     **/
-    args:  (fn) => {
+    args: (fn) => {
         var ref;
 
         return ((fn !== null ? (ref = fn.toString().match(utils.fnRgx)) !== null ? ref[1] : void 0 : void 0) || '').match(utils.argRgx) || [];
     },
-                
+
     /**
     * Use to resize elemen to match window size 
     *
@@ -192,12 +192,12 @@ export const utils = {
 
         if (data instanceof Array) {
 
-            copy = ( () => {
+            copy = (() => {
                 var i, len, results;
 
                 results = [];
                 for (i = 0, len = data.length; i < len; i++) {
-  
+
                     v = data[i];
                     results.push(v);
                 }
@@ -223,7 +223,7 @@ export const utils = {
     *
     * @return {number} - computed em value 
     **/
-    convertToEm:(value) => {
+    convertToEm: (value) => {
         return value * this.getFontsize();
     },
 
@@ -232,8 +232,8 @@ export const utils = {
     *
     * @return {number} - computed point value 
     **/
-    convertToPt:(value) => {
-    
+    convertToPt: (value) => {
+
     },
 
     /**
@@ -241,14 +241,14 @@ export const utils = {
     *
     * @return base {number} - computed fontsize
     **/
-    convertBase:() => {
-        var pixels, 
-            elem = document.createElement(), 
+    convertBase: () => {
+        var pixels,
+            elem = document.createElement(),
             style = elem.getAttribute('style');
 
         elem.setAttribute('style', style + ';font-size:1em !important');
         elem.setAttribute('style', style);
-        
+
         base = this.getFontsize();
 
         return base;
@@ -262,7 +262,7 @@ export const utils = {
     * @param override {boolean} - optional arg to replace existing property keys
     * @return results {array} - new array of mixed object properties and values 
     **/
-    mix:(giv, rec, override) => {
+    mix: (giv, rec, override) => {
         var k, results, mixins, v;
 
         if (override === true) {
@@ -298,7 +298,7 @@ export const utils = {
     * @param override {boolean} - override property names with new values
     * @return { } - mix 
     **/
-    mixin: function(input, output, override) {
+    mixin: function (input, output, override) {
         if (!override || override === null) {
             override = false;
         }
@@ -317,7 +317,7 @@ export const utils = {
                 return this.mix(output, input.prototype, override);
         }
     },
-    
+
     /**
     * Generate random unique identifier string
     *
@@ -338,32 +338,58 @@ export const utils = {
      * @return Promise
      */
     run: {
-      series: (tasks = []) => {
-        if (!tasks.length) return Promise.resolve([]);
-        
-        return tasks.reduce((p, task, idx) => 
-         
-            p.then(results => 
-            
-                Promise.resolve(task())
-              
-                .then(r => [...results, r])
-             
-                .catch(err => {
-                    const error = new Error(`Task ${idx} failed`);
-                    error.originalError = err;
-                    throw error;
-                })
-          ),
-          Promise.resolve([])
-        );
-      },
-      parallel: (tasks = []) => {
-        if (!tasks.length) return Promise.resolve([]);
+        series: (tasks = []) => {
+            if (!tasks.length) return Promise.resolve([]);
 
-        return Promise.all(tasks.map(task => Promise.resolve(task())));
-      }
+            return tasks.reduce((p, task, idx) =>
+                p.then(results =>
+                    Promise.resolve(task())
+                        .then(r => [...results, r])
+                        .catch(err => {
+                            const error = new Error(`Task ${idx} failed`);
+                            error.originalError = err;
+                            throw error;
+                        })
+                ),
+                Promise.resolve([])
+            );
+        },
+
+        parallel: (tasks = []) => {
+            if (!tasks.length) return Promise.resolve([]);
+            return Promise.all(tasks.map(t => Promise.resolve(t())));
+        },
+
+        first: (tasks = []) => {
+            if (!tasks.length) return Promise.resolve(null);
+            return tasks[0]().catch(() => {
+                if (tasks.length > 1) {
+                    return utils.run.first(tasks.slice(1));
+                }
+                throw new Error('All tasks failed');
+            });
+        }
+    },
+    logger: (debug) => {
+        const history = [];
+        const level = 0;
+        
+        return {
+            warn(...args) {
+                if (debug.level < 2) {
+                    console.warn('WARN:', ...args);
+                    debug.history.push({ type: 'warn', args });
+                }
+            },
+            log(...args) {
+                if (debug.level < 1) {
+                    console.log('Debug:', ...args);
+                    debug.history.push({ type: 'log', args });
+                }
+            }
+        }
     }
+
 };
 
 export default utils;
