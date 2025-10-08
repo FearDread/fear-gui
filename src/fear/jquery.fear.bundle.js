@@ -1,12 +1,12 @@
-import { FEAR } from './gui/core/gui.js';
-import { Broker } from './gui/core/broker.js';
-import { Utils } from './gui/core/utils.js';
-import { SandBox } from './gui/core/sandbox.js';
+import { FEAR } from '../gui/core/gui.js';
+import { Broker } from '../gui/core/broker.js';
+import { Utils } from '../gui/core/utils.js';
+import { SandBox } from '../gui/core/sandbox.js';
 
 // Plugins
-import { Cellar } from './gui/modules/cellar.js';
+import { Cellar } from '../gui/modules/cellar.js';
 import { Events } from './gui/core/events.js';
-import { Router } from './gui/modules/router.js';
+import { Router } from '../gui/modules/router.js';
 
 // Make FEAR available globally
 window.FEAR = FEAR;
@@ -20,6 +20,7 @@ window.FEARPlugins = {
   Events,
   Router
 };
+
 
 // jQuery Plugin Wrapper
 (function($) {
@@ -56,7 +57,18 @@ window.FEARPlugins = {
     });
   };
 
-
+  // $.GUI - Constructor function (creates new instances)
+  $.FEAR = function(options) {
+    const instance = createGUI();
+    if (options) instance.configure(options);
+    return instance;
+  };
+  
+  // Expose utilities on constructor
+  $.FEAR.utils = utils;
+  $.FEAR.createBroker = createBroker;
+  $.FEAR.createRegistry = createRegistry;
+  $.FEAR.version = '1.0.2';
   // Expose core classes
   $.FEAR.GUI = FEAR;
   $.FEAR.Broker = Broker;
