@@ -48,3 +48,22 @@
       return this.cache.size;
     }
   }
+  
+
+$.gui.create('myModule', (sandbox) => {
+  return {
+    load(options) {
+      sandbox.log('Module loaded!', options);
+      sandbox.$('#button').on('click', () => {
+        sandbox.emit('button:clicked', { time: Date.now() });
+      });
+      return Promise.resolve();
+    },
+    unload() {
+      sandbox.log('Module unloaded!');
+    },
+    destroy() {
+      sandbox.log('Module destroyed!');
+    }
+  };
+});

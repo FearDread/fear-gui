@@ -1,7 +1,8 @@
 import { GUI } from '../core/gui';
-import { Cellar } from '../modules/';
+import { Cellar } from '../modules';
 import { Events } from './event';
 
+const FEAR = new GUI();
 // Fear Portfolio Plugin using GUI Framework
 export const FearPortfolioPlugin = (gui) => {
 
@@ -880,8 +881,8 @@ export const FearPortfolioPlugin = (gui) => {
 };
 
 // Usage example with GUI framework
+export const initFearIgnite = () => {
 
-const FEAR = new GUI();
 FEAR.use(FearPortfolioPlugin);
 
 FEAR.start().then(() => {
@@ -898,6 +899,25 @@ FEAR.start().then(() => {
 }).catch(error => {
     console.error('Portfolio initialization failed:', error);
 });
-*/
+}
 
-export { FearPortfolioPlugin, VERSION };
+
+
+export { FEAR as FearGUI, initFearIgnite };
+
+// Auto-initialize when DOM is ready
+if (typeof window !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.FEAR = initFearApp()
+                .then(() => console.log('FEAR SPA LOADED'))
+                .catch(() => console.log('Error Loading FEAR'))
+                .finally(() => console.log('FEAR SPA INITIALIZATION COMPLETE'));
+        });
+    } else {
+        window.FEAR = initFearApp()
+            .then(() => console.log('FEAR SPA LOADED'))
+            .catch(() => console.log('Error Loading FEAR'))
+            .finally(() => console.log('FEAR SPA INITIALIZATION COMPLETE'));
+    }
+}

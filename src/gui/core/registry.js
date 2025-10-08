@@ -6,8 +6,8 @@ import { Broker } from './broker';
  * @param {Object} options - Global configuration options
  * @returns {Object} Registry API
  */
-export function Registry(options = {}) {
 
+export function Registry(options = {}) {
     const modules = new Map();
     const broker = new Broker();
 
@@ -108,7 +108,12 @@ export function Registry(options = {}) {
       fire,
       broker
     };
+<<<<<<< HEAD
 }
 
+=======
+  }
+})()
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
 export const createRegistry = () => new Registry();
 export default { Registry, createRegistry };

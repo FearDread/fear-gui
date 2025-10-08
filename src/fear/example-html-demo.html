@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FEAR GUI Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 40px;
+    }
+    
+    .header h1 {
+      font-size: 3em;
+      margin-bottom: 10px;
+    }
+    
+    .header p {
+      font-size: 1.2em;
+      opacity: 0.9;
+    }
+    
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      transition: transform 0.3s ease;
+    }
+    
+    .card:hover {
+      transform: translateY(-5px);
+    }
+    
+    .card h2 {
+      color: #667eea;
+      margin-bottom: 15px;
+      font-size: 1.5em;
+    }
+    
+    .card p {
+      color: #666;
+      margin-bottom: 15px;
+      line-height: 1.6;
+    }
+    
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    
+    button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    button:active {
+      transform: scale(0.98);
+    }
+    
+    .output {
+      background: #f7f7f7;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .output div {
+      margin-bottom: 5px;
+      color: #333;
+    }
+    
+    .output .success {
+      color: #22c55e;
+    }
+    
+    .output .error {
+      color: #ef4444;
+    }
+    
+    .output .info {
+      color: #3b82f6;
+    }
+    
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.85em;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+    
+    .status.running {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+    
+    .status.stopped {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 1em;
+      margin-bottom: 10px;
+      transition: border-color 0.3s ease;
+    }
+    
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .console {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 30px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .console-line {
+      margin-bottom: 5px;
+      padding: 2px 0;
+    }
+    
+    .console-line.log {
+      color: #ce9178;
+    }
+    
+    .console-line.warn {
+      color: #dcdcaa;
+    }
+    
+    .console-line.error {
+      color: #f48771;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚡ FEAR GUI</h1>
+      <p>Modular JavaScript Framework with jQuery Integration</p>
+    </div>
+    
+    <div class="demo-grid">
+      <!-- Module Demo -->
+      <div class="card">
+        <h2>📦 Module System</h2>
+        <p>Create and manage independent modules with lifecycle hooks.</p>
+        <button id="startModule">Start Module</button>
+        <button id="stopModule">Stop Module</button>
+        <div class="output" id="moduleOutput"></div>
+      </div>
+      
+      <!-- Event Broker Demo -->
+      <div class="card">
+        <h2>📡 Event Broker</h2>
+        <p>Pub/Sub messaging system for inter-module communication.</p>
+        <button id="emitEvent">Emit Event</button>
+        <button id="fireEvent">Fire Event</button>
+        <div class="output" id="brokerOutput"></div>
+      </div>
+      
+      <!-- Registry Demo -->
+      <div class="card">
+        <h2>📋 Registry</h2>
+        <p>Track and manage all registered modules in your application.</p>
+        <button id="listModules">List Modules</button>
+        <button id="registerModule">Register Module</button>
+        <div class="output" id="registryOutput"></div>
+      </div>
+      
+      <!-- Async Operations Demo -->
+      <div class="card">
+        <h2>⏱️ Async Operations</h2>
+        <p>Promise-based utilities for timeouts, intervals, and animations.</p>
+        <button id="runAsync">Run Async Chain</button>
+        <button id="animateBox">Animate Element</button>
+        <div id="animBox" style="width: 50px; height: 50px; background: #667eea; margin: 10px 0; border-radius: 6px;"></div>
+        <div class="output" id="asyncOutput"></div>
+      </div>
+      
+      <!-- AJAX Demo -->
+      <div class="card">
+        <h2>🌐 AJAX Fetch</h2>
+        <p>Promise-wrapped jQuery AJAX for modern async/await patterns.</p>
+        <button id="fetchData">Fetch Data</button>
+        <button id="fetchError">Simulate Error</button>
+        <div class="output" id="fetchOutput"></div>
+      </div>
+      
+      <!-- Utilities Demo -->
+      <div class="card">
+        <h2>🛠️ Utilities</h2>
+        <p>Helper functions for common operations and transformations.</p>
+        <input type="text" id="slugInput" placeholder="Type text to slugify...">
+        <button id="generateId">Generate Unique ID</button>
+        <div class="output" id="utilsOutput"></div>
+      </div>
+    </div>
+    
+    <div class="console" id="console">
+      <div class="console-line">Console Output:</div>
+    </div>
+  </div>
+
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  
+  <!-- FEAR GUI - Use your built file here -->
+  <script src="dist/jquery.fear.gui.js"></script>
+  
+  <script>
+    // Console logger
+    const logToConsole = (message, type = 'log') => {
+      const console = $('#console');
+      const line = $('<div>').addClass(`console-line ${type}`).text(`[${new Date().toLocaleTimeString()}] ${message}`);
+      console.append(line);
+      console.scrollTop(console[0].scrollHeight);
+    };
+    
+    const addOutput = (id, message, className = '') => {
+      const output = $(id);
+      const div = $('<div>').addClass(className).text(message);
+      output.append(div);
+      output.scrollTop(output[0].scrollHeight);
+    };
+    
+    // Initialize FEAR GUI
+    logToConsole('Initializing FEAR GUI...', 'log');
+    
+    $.FEAR.gui.configure({
+      name: 'DemoApp',
+      logLevel: 1
+    });
+    
+    logToConsole('FEAR GUI initialized successfully', 'log');
+    
+    // ==================== Module System Demo ====================
+    
+    $.FEAR.gui.create('demoModule', (sandbox) => {
+      return {
+        load(options) {
+          sandbox.log('Demo module loaded!');
+          logToConsole('Module: demoModule loaded', 'log');
+          
+          sandbox.add('demo:event', (data) => {
+            addOutput('#moduleOutput', `Received: ${data.message}`, 'success');
+          });
+          
+          return Promise.resolve();
+        },
+        
+        unload() {
+          sandbox.log('Demo module unloaded!');
+          logToConsole('Module: demoModule unloaded', 'warn');
+        },
+        
+        destroy() {
+          logToConsole('Module: demoModule destroyed', 'error');
+        }
+      };
+    });
+    
+    $('#startModule').click(() => {
+      $.FEAR.gui.start('demoModule')
+        .then(() => {
+          addOutput('#moduleOutput', '✓ Module started successfully', 'success');
+          logToConsole('Module started via button click', 'log');
+        })
+        .catch(err => {
+          addOutput('#moduleOutput', `✗ Error: ${err.message}`, 'error');
+          logToConsole(`Error starting module: ${err.message}`, 'error');
+        });
+    });
+    
+    $('#stopModule').click(() => {
+      $.FEAR.gui.stop('demoModule')
+        .then(() => {
+          addOutput('#moduleOutput', '✓ Module stopped successfully', 'success');
+          logToConsole('Module stopped via button click', 'warn');
+        });
+    });
+    
+    // ==================== Event Broker Demo ====================
+    
+    let eventCounter = 0;
+    
+    $.FEAR.gui.broker.add('demo:broadcast', (data) => {
+      addOutput('#brokerOutput', `Subscriber 1: ${data.value}`, 'info');
+    });
+    
+    $.FEAR.gui.broker.add('demo:broadcast', (data) => {
+      addOutput('#brokerOutput', `Subscriber 2: ${data.value}`, 'info');
+    });
+    
+    $('#emitEvent').click(() => {
+      eventCounter++;
+      $.FEAR.gui.broker.emit('demo:broadcast', { value: `Event #${eventCounter}` })
+        .then(() => {
+          addOutput('#brokerOutput', '✓ Event emitted to all subscribers', 'success');
+          logToConsole(`Emitted event #${eventCounter}`, 'log');
+        });
+    });
+    
+    $('#fireEvent').click(() => {
+      $.FEAR.gui.broker.fire('demo:broadcast', { value: 'Fire event (first only)' })
+        .then(() => {
+          addOutput('#brokerOutput', '✓ Event fired (first subscriber only)', 'success');
+          logToConsole('Fired event to first subscriber', 'log');
+        });
+    });
+    
+    // ==================== Registry Demo ====================
+    
+    $.FEAR.gui.registry.on('module:registered', (data) => {
+      logToConsole(`Registry: ${data.name} registered`, 'log');
+    });
+    
+    $('#listModules').click(() => {
+      const modules = $.FEAR.gui.registry.list();
+      $('#registryOutput').empty();
+      
+      if (modules.length === 0) {
+        addOutput('#registryOutput', 'No modules registered yet', 'info');
+      } else {
+        addOutput('#registryOutput', `Registered modules: ${modules.length}`, 'success');
+        modules.forEach(name => {
+          addOutput('#registryOutput', `  • ${name}`, 'info');
+        });
+      }
+    });
+    
+    let dynamicModuleCount = 0;
+    $('#registerModule').click(() => {
+      dynamicModuleCount++;
+      const moduleName = `dynamic${dynamicModuleCount}`;
+      
+      $.FEAR.gui.create(moduleName, (sandbox) => {
+        return {
+          load() {
+            sandbox.log(`Dynamic module ${moduleName} loaded`);
+            return Promise.resolve();
+          }
+        };
+      });
+      
+      $.FEAR.gui.start(moduleName).then(() => {
+        addOutput('#registryOutput', `✓ Created & started: ${moduleName}`, 'success');
+      });
+    });
+    
+    // ==================== Async Operations Demo ====================
+    
+    $('#runAsync').click(async () => {
+      $('#asyncOutput').empty();
+      addOutput('#asyncOutput', 'Starting async chain...', 'info');
+      logToConsole('Async chain started', 'log');
+      
+      $.FEAR.gui.create('asyncModule', (sandbox) => {
+        return {
+          async load() {
+            await sandbox.timeout(500);
+            addOutput('#asyncOutput', '✓ Step 1: Timeout 500ms', 'success');
+            
+            await sandbox.timeout(500);
+            addOutput('#asyncOutput', '✓ Step 2: Timeout 500ms', 'success');
+            
+            await sandbox.timeout(500);
+            addOutput('#asyncOutput', '✓ Step 3: Complete!', 'success');
+            
+            logToConsole('Async chain completed', 'log');
+          }
+        };
+      });
+      
+      await $.FEAR.gui.start('asyncModule');
+    });
+    
+    $('#animateBox').click(() => {
+      $.FEAR.gui.create('animModule', (sandbox) => {
+        return {
+          async load() {
+            const $box = sandbox.$('#animBox');
+            
+            addOutput('#asyncOutput', 'Animating...', 'info');
+            
+            await $box.animateAsync({ 
+              marginLeft: '200px',
+              opacity: 0.5 
+            }, 500);
+            
+            await $box.animateAsync({ 
+              marginLeft: '0px',
+              opacity: 1 
+            }, 500);
+            
+            addOutput('#asyncOutput', '✓ Animation complete!', 'success');
+            logToConsole('Animation completed', 'log');
+          }
+        };
+      });
+      
+      $.FEAR.gui.start('animModule');
+    });
+    
+    // ==================== AJAX Demo ====================
+    
+    $('#fetchData').click(() => {
+      $('#fetchOutput').empty();
+      addOutput('#fetchOutput', 'Fetching data...', 'info');
+      
+      $.FEAR.gui.create('fetchModule', (sandbox) => {
+        return {
+          async load() {
+            try {
+              const response = await sandbox.fetch('https://jsonplaceholder.typicode.com/todos/1');
+              addOutput('#fetchOutput', '✓ Data received:', 'success');
+              addOutput('#fetchOutput', JSON.stringify(response.data, null, 2), 'info');
+              logToConsole('AJAX request successful', 'log');
+            } catch (error) {
+              addOutput('#fetchOutput', `✗ Error: ${error.message}`, 'error');
+              logToConsole(`AJAX error: ${error.message}`, 'error');
+            }
+          }
+        };
+      });
+      
+      $.FEAR.gui.start('fetchModule');
+    });
+    
+    $('#fetchError').click(() => {
+      $('#fetchOutput').empty();
+      addOutput('#fetchOutput', 'Simulating error...', 'info');
+      
+      $.FEAR.gui.create('errorModule', (sandbox) => {
+        return {
+          async load() {
+            try {
+              await sandbox.fetch('https://invalid-url-that-does-not-exist.com/data');
+            } catch (error) {
+              addOutput('#fetchOutput', '✓ Error caught successfully:', 'success');
+              addOutput('#fetchOutput', error.message, 'error');
+              logToConsole('Error handling works correctly', 'log');
+            }
+          }
+        };
+      });
+      
+      $.FEAR.gui.start('errorModule');
+    });
+    
+    // ==================== Utilities Demo ====================
+    
+    $('#slugInput').on('input', function() {
+      const text = $(this).val();
+      if (text) {
+        const slug = $.FEAR.utils.slugify(text);
+        $('#utilsOutput').empty();
+        addOutput('#utilsOutput', `Slug: ${slug}`, 'info');
+      }
+    });
+    
+    $('#generateId').click(() => {
+      const id1 = $.FEAR.utils.unique(8);
+      const id2 = $.FEAR.utils.unique(16);
+      const id3 = $.FEAR.utils.unique(32);
+      
+      $('#utilsOutput').empty();
+      addOutput('#utilsOutput', `ID (8 chars):  ${id1}`, 'info');
+      addOutput('#utilsOutput', `ID (16 chars): ${id2}`, 'info');
+      addOutput('#utilsOutput', `ID (32 chars): ${id3}`, 'info');
+      
+      logToConsole('Generated unique IDs', 'log');
+    });
+    
+    // ==================== Initial Demo ====================
+    
+    logToConsole('Demo page ready! Click buttons to test features.', 'log');
+    addOutput('#moduleOutput', 'Click "Start Module" to begin', 'info');
+    addOutput('#brokerOutput', 'Click to emit or fire events', 'info');
+    addOutput('#registryOutput', 'Click to view registered modules', 'info');
+    addOutput('#asyncOutput', 'Click to run async operations', 'info');
+    addOutput('#fetchOutput', 'Click to make AJAX requests', 'info');
+    addOutput('#utilsOutput', 'Type above to see utilities', 'info');
+  </script>
+</body>
+</html>

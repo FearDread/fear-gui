@@ -6,11 +6,13 @@ import { createBroker } from './broker';
 import { createSandbox } from './sandbox';
 
 export function GUI() {
+
     const self = this;
 
     if (typeof $ === 'undefined' || $ === null) {
       throw new Error('FEAR GUI requires jQuery library.');
     }
+
     this.config = {
         logLevel: 0,
         name: 'FEAR_GUI',
@@ -29,31 +31,52 @@ export function GUI() {
       imports: []
     };
     // Create module registry
-    this.registry = createRegistry(this.state.config);
+    this.registry = createRegistry(this.this.state.config);
     // Create broker and event system
     this.broker = createBroker();
+<<<<<<< HEAD
     // this.debug logger
+=======
+
+    // self.debug logger
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
     this.debug = {
       level: 0,
       history: [],
       timeout: 5000,
 
       warn: (...args) => {
+<<<<<<< HEAD
         if (this.debug.level < 2) {
           const logArgs = ['WARN:', ...args];
           this.debug._logger('warn', logArgs);
+=======
+        if (self.debug.level < 2) {
+          const logArgs = ['WARN:', ...args];
+          self.debug._logger('warn', logArgs);
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
         }
       },
 
       log: (...args) => {
+<<<<<<< HEAD
         if (this.debug.level < 1) {
           const logArgs = ['this.debug:', ...args];
           this.debug._logger('log', logArgs);
+=======
+        if (self.debug.level < 1) {
+          const logArgs = ['self.debug:', ...args];
+          self.debug._logger('log', logArgs);
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
         }
       },
 
       _logger: (type, arr) => {
+<<<<<<< HEAD
         this.debug.history.push({ type, args: arr });
+=======
+        self.debug.history.push({ type, args: arr });
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
 
         if (console[type]?.apply) {
           console[type].apply(console, arr);
@@ -64,7 +87,7 @@ export function GUI() {
     };
     // Private helpers
     this._runSandboxPlugins = (ev, sb) => {
-      const tasks = this.state.plugins
+      const tasks = this.this.state.plugins
         .filter(plugin => typeof plugin.plugin?.[ev] === 'function')
         .map(plugin => () => {
           const eventHandler = plugin.plugin[ev];
@@ -96,10 +119,10 @@ export function GUI() {
     this._createInstance = (moduleId, o) => {
       const { options: opt } = o;
       const id = o.instanceId || moduleId;
-      const module = state.modules[moduleId];
+      const module = this.this.state.modules[moduleId];
 
-      if (state.instances[id]) {
-        return Promise.resolve({ instance: state.instances[id], options: opt });
+      if (this.state.instances[id]) {
+        return Promise.resolve({ instance: this.state.instances[id], options: opt });
       }
 
       const iOpts = {
@@ -131,11 +154,11 @@ export function GUI() {
 
     this._startAll = (mods) => {
       if (!mods || mods === null) {
-        mods = Object.keys(state.modules);
+        mods = Object.keys(this.state.modules);
       }
 
       const startTasks = mods.map(moduleId => () =>
-        gui.start(moduleId, state.modules[moduleId].options)
+        gui.start(moduleId, this.state.modules[moduleId].options)
           .catch(err => {
             const moduleError = new Error(`Failed to start module '${moduleId}': ${err.message}`);
             moduleError.moduleId = moduleId;
@@ -167,11 +190,25 @@ export function GUI() {
     };
 
     // Public API
+<<<<<<< HEAD
     return {
       configure: (options) => {
         if (options && utils.isObj(options)) {
           this.config = utils.merge(this.config, options);
           this.debug.level = this.config.logLevel || 0;
+=======
+    const gui = {
+      config: self.state.config,
+      debug: self.debug,
+      registry: self.registry,
+      broker: self.broker,
+      utils,
+
+      configure: (options) => {
+        if (options && utils.isObj(options)) {
+          this.state.config = utils.merge(this.state.config, options);
+          self.debug.level = this.state.config.logLevel || 0;
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
         }
         return this;
       },
@@ -182,6 +219,7 @@ export function GUI() {
           utils.isType('object', options, 'option parameter');
 
         if (error) {
+<<<<<<< HEAD
           this.debug.warn(`could not register module '${id}': ${error}`);
           return this;
         }
@@ -193,6 +231,19 @@ export function GUI() {
 
         state.modules[id] = { id, creator, options };
         return this;
+=======
+          self.debug.warn(`could not register module '${id}': ${error}`);
+          return gui;
+        }
+
+        if (this.state.modules[id]) {
+          self.debug.log(`module ${id} was already registered`);
+          return gui;
+        }
+
+        this.state.modules[id] = { id, creator, options };
+        return gui;
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
       },
 
       start: (moduleId, opt = {}) => {
@@ -230,6 +281,7 @@ export function GUI() {
 
               if (loadResult && typeof loadResult.then === 'function') {
                 return loadResult.then(() => {
+<<<<<<< HEAD
                   self.state.running[id] = true;
                 });
               } else {
@@ -238,31 +290,45 @@ export function GUI() {
               }
             } else {
               self.state.running[id] = true;
+=======
+                  this.state.running[id] = true;
+                });
+              } else {
+                this.state.running[id] = true;
+                return Promise.resolve();
+              }
+            } else {
+              this.state.running[id] = true;
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
               return Promise.resolve();
             }
           })
           .catch(err => {
+<<<<<<< HEAD
             this.debug.warn(err);
+=======
+            self.debug.warn(err);
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
             throw new Error('could not start module: ' + err.message);
           });
       },
 
       stop: (id) => {
         if (arguments.length === 0 || typeof id === 'function') {
-          const moduleIds = Object.keys(state.instances);
+          const moduleIds = Object.keys(this.state.instances);
           return utils.run.parallel(moduleIds.map(moduleId => () => gui.stop(moduleId)));
         }
 
-        const instance = state.instances[id];
+        const instance = this.state.instances[id];
 
         if (!instance) {
           return Promise.resolve();
         }
 
-        delete state.instances[id];
+        delete this.state.instances[id];
         broker.remove(instance);
 
-        return runSandboxPlugins('unload', state.sandboxes[id])
+        return runSandboxPlugins('unload', this.state.sandboxes[id])
           .then(() => {
             if (instance.unload && typeof instance.unload === 'function') {
               const unloadResult = instance.unload();
@@ -274,7 +340,7 @@ export function GUI() {
             return Promise.resolve();
           })
           .then(() => {
-            delete state.running[id];
+            delete this.state.running[id];
           });
       },
 
@@ -292,7 +358,7 @@ export function GUI() {
             return gui;
           }
 
-          state.plugins.push({
+          this.state.plugins.push({
             creator: plugin,
             options: opt
           });
@@ -307,13 +373,17 @@ export function GUI() {
             return new plugin.fn(this, options);
           };
         } else {
+<<<<<<< HEAD
           this.debug.log('Error :: Missing ' + plugin + ' fn() method.');
+=======
+          self.debug.log('Error :: Missing ' + plugin + ' fn() method.');
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
         }
         return gui;
       },
 
       boot: () => {
-        const tasks = state.plugins
+        const tasks = this.state.plugins
           .filter(plugin => plugin.booted !== true)
           .map(plugin => () => {
             return new Promise((resolve, reject) => {
@@ -342,12 +412,41 @@ export function GUI() {
       },
 
       attach: async (imports) => {
+<<<<<<< HEAD
         this.debug.log('Dynamic async module loading.');
         this.debug.log('Imports:', imports);
+=======
+        self.debug.log('Dynamic async module loading.');
+        self.debug.log('Imports:', imports);
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
       }
     };
 };
 
+<<<<<<< HEAD
 export const createGUI = () => new GUI();
 export { GUI as FEAR } 
 export default { FEAR, createGUI };
+=======
+    self.debug.warn('GUI initialized', gui);
+
+    return gui;
+  };
+})(jQuery);
+
+export const createGUI = () => new GUI();
+
+
+export const FEAR = ($) => new GUI($);
+export default FEAR;
+
+
+  // ============================================
+  // jQuery Integration
+  // ============================================
+
+
+
+
+  
+>>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
