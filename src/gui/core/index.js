@@ -6,7 +6,6 @@ import { createBroker } from './broker';
 import { createGUI } from './gui';
 import { Metrics } from "../modules/metrics";
 
-  
   // $.GUI - Constructor function (creates new instances)
   $.FEAR = function(options) {
     const instance = createGUI();

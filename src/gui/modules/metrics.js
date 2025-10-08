@@ -1,9 +1,10 @@
-import FEAR from "../core/gui";
+import { createGUI } from "../core/gui";
+const FEAR = createGUI();
 /**
  * Performance Metrics Module
  * Monitors route loading times, cache performance, and module lifecycle events
  */
-export const Metrics = FEAR().create('Metrics', ($GUI) => {
+export const Metrics = FEAR.create('Metrics', ($GUI) => {
   // Private state
   let monitor = null;
   let metricsInterval = null;

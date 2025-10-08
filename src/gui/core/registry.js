@@ -93,8 +93,8 @@ export const Registry = function (options = {}) {
     const fire = (event, data) =>
       broker.fire(event, data);
 
-    return {
-      create: () => this,
+    const api = {
+      create: () => api,
       register,
       unregister,
       get,
@@ -109,6 +109,8 @@ export const Registry = function (options = {}) {
       fire,
       broker
     };
+
+    return api;
 };
 
 export const createRegistry = () => new Registry().create();

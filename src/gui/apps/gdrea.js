@@ -4,7 +4,7 @@
 // Initialize GUI
 // ============================================
 const GUI = new $.FEAR();
-console.log('gui? ', GUI);
+console.log('gui? ', GUI)
 
 // ============================================
 // jQuery Sandbox Plugin
