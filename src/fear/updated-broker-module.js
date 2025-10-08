@@ -7,23 +7,24 @@ import { utils } from './utils';
  * @param {boolean} options.cascade - Enable cascading events to parent channels
  * @param {boolean} options.fireOrigin - Use original origin in cascaded events
  * @param {boolean} options.debug - Enable debug logging
- * @returns {Object} Broker API
+ * @returns {Object} Broker this
  */
-export const createBroker = (options = {}) => {
-  const channels = {};
-  const cascade = options.cascade || false;
-  const fireOrigin = options.fireOrigin || false;
-  const debug = options.debug || false;
+export const Broker = function(options = {}) {
+  const _this = this;
+  this.channels = {};
+  this.cascade = options.cascade || false;
+  this.fireOrigin = options.fireOrigin || false;
+  this.debug = options.debug || false;
 
   // ==================== Private Methods ====================
   
-  const log = (message) => {
+  this._log = (message) => {
     if (debug && console && console.log) {
       console.log('[EventBroker]', message);
     }
   };
 
-  const deleteSubscriptions = (channel, callback, context) => {
+  this._delete = (channel, callback, context) => {
     if (!channels[channel]) {
       return [];
     }
@@ -33,7 +34,7 @@ export const createBroker = (options = {}) => {
     channels[channel] = channels[channel].filter(sub => {
       if (callback && sub.callback === callback) return false;
       if (context && sub.context === context) return false;
-      if (!callback && !context && sub.context === api) return false;
+      if (!callback && !context && sub.context === this) return false;
       return true;
     });
 
@@ -45,7 +46,7 @@ export const createBroker = (options = {}) => {
     return channels[channel];
   };
 
-  const setupTasks = (data, channel, origin) => {
+  this._setupTasks = (data, channel, origin) => {
     const subscribers = channels[channel] || [];
 
     return subscribers.map(sub => () => {
@@ -73,7 +74,7 @@ export const createBroker = (options = {}) => {
     });
   };
 
-  const formatErrors = (errors) => {
+  this._formatErrors = (errors) => {
     if (utils.isArr(errors)) {
       const messages = errors
         .filter(x => x != null)
@@ -86,13 +87,13 @@ export const createBroker = (options = {}) => {
     return errors;
   };
 
-  // ==================== Public API ====================
+  // ==================== Public this ====================
 
-  const api = {
+  return {
     /**
      * Subscribe to a channel
      */
-    add(channel, callback, context) {
+    add: (channel, callback, context) => {
       if (typeof channel !== 'string') {
         throw new Error('Channel must be a string');
       }
@@ -101,47 +102,51 @@ export const createBroker = (options = {}) => {
         throw new Error('Callback must be a function');
       }
 
-      if (!channels[channel]) {
-        channels[channel] = [];
+      if (!this.channels[channel]) {
+        this.channels[channel] = [];
       }
 
       const subscription = {
         event: channel,
-        context: context || api,
+        context: context || this,
         callback: callback
       };
 
-      channels[channel].push(subscription);
-      log(`Subscribed to '${channel}'`);
+      this.channels[channel].push(subscription);
 
-      return api;
+      return this;
     },
 
     /**
      * Unsubscribe from channels
      */
-    remove(channel, callback, context) {
+    remove: (channel, callback, context) => {
       const type = typeof channel;
 
-      if (type === 'string') {
-        if (typeof callback === 'function') {
-          deleteSubscriptions(channel, callback, context);
-        } else if (callback === undefined) {
-          deleteSubscriptions(channel);
-        }
-      } else if (type === 'function') {
-        Object.keys(channels).forEach(id => {
-          deleteSubscriptions(id, channel);
-        });
-      } else if (type === 'undefined') {
-        api.clear();
-      } else if (type === 'object' && channel !== null) {
-        Object.keys(channels).forEach(id => {
-          deleteSubscriptions(id, null, channel);
-        });
-      }
+      switch (type) {
 
-      return api;
+        case 'string':
+          if (typeof callback === 'function') {
+            this._delete(channel, callback, context);
+          } else if (callback === undefined) {
+            this._delete(channel);
+          }
+
+        case 'function':
+          Object.keys(channels).forEach(id => {
+            _this._delete(id, channel);
+          });
+
+        case 'undefined':
+          this.clear();
+
+        case 'object' && channel !== null:
+          Object.keys(channels).forEach(id => {
+            this._delete(id, null, channel);
+          });
+      } 
+
+      return this;
     },
 
     /**
@@ -161,12 +166,12 @@ export const createBroker = (options = {}) => {
       const onceWrapper = (...args) => {
         if (!fired) {
           fired = true;
-          api.remove(channel, onceWrapper);
-          return callback.apply(context || api, args);
+          this.remove(channel, onceWrapper);
+          return callback.apply(context || this, args);
         }
       };
 
-      return api.add(channel, onceWrapper, context);
+      return this.add(channel, onceWrapper, context);
     },
 
     /**
@@ -175,7 +180,7 @@ export const createBroker = (options = {}) => {
     clear() {
       Object.keys(channels).forEach(k => delete channels[k]);
       log('All channels cleared');
-      return api;
+      return this;
     },
 
     /**
@@ -221,11 +226,15 @@ export const createBroker = (options = {}) => {
         .then(result => {
           // Handle cascading to parent channels
           if (cascade) {
+            
             const segments = channel.split('/');
+            
             if (segments.length > 1) {
               const parentChannel = segments.slice(0, -1).join('/');
               const cascadeOrigin = fireOrigin ? origin : parentChannel;
-              return api.emit(parentChannel, data, cascadeOrigin)
+              
+              return this
+                .emit(parentChannel, data, cascadeOrigin)
                 .then(() => result);
             }
           }
@@ -249,18 +258,18 @@ export const createBroker = (options = {}) => {
 
         if (timeout && timeout > 0) {
           timeoutId = setTimeout(() => {
-            api.remove(channel, handler);
+            this.remove(channel, handler);
             reject(new Error(`Timeout waiting for event '${channel}' after ${timeout}ms`));
           }, timeout);
         }
 
         const handler = (data, origin) => {
           cleanup();
-          api.remove(channel, handler);
+          this.remove(channel, handler);
           resolve({ data, origin, channel });
         };
 
-        api.add(channel, handler);
+        this.add(channel, handler);
       });
     },
 
@@ -275,17 +284,17 @@ export const createBroker = (options = {}) => {
       }
 
       if (!broker) {
-        broker = api;
+        broker = this;
       }
 
       // Prevent circular pipes
-      if (broker === api && source === target) {
-        return api;
+      if (broker === this && source === target) {
+        return this;
       }
 
-      api.add(source, (...args) => broker.fire(target, ...args));
+      this.add(source, (...args) => broker.fire(target, ...args));
 
-      return api;
+      return this;
     },
 
     /**
@@ -297,21 +306,21 @@ export const createBroker = (options = {}) => {
 
       return {
         add: (channel, fn, context) =>
-          api.add(prefix + channel, fn, context),
+          this.add(prefix + channel, fn, context),
         remove: (channel, cb, context) =>
-          api.remove(prefix + channel, cb, context),
+          this.remove(prefix + channel, cb, context),
         fire: (channel, data) =>
-          api.fire(prefix + channel, data),
+          this.fire(prefix + channel, data),
         emit: (channel, data, origin) =>
-          api.emit(prefix + channel, data, origin),
+          this.emit(prefix + channel, data, origin),
         once: (channel, fn, context) =>
-          api.once(prefix + channel, fn, context),
+          this.once(prefix + channel, fn, context),
         waitFor: (channel, timeout) =>
-          api.waitFor(prefix + channel, timeout),
+          this.waitFor(prefix + channel, timeout),
         pipe: (src, target, broker) =>
-          api.pipe(prefix + src, prefix + target, broker),
+          this.pipe(prefix + src, prefix + target, broker),
         getSubscriberCount: (channel) =>
-          api.getSubscriberCount(prefix + channel),
+          this.getSubscriberCount(prefix + channel),
         clear: () => {
           const channelKeys = Object.keys(channels);
           channelKeys.forEach(ch => {
@@ -319,7 +328,7 @@ export const createBroker = (options = {}) => {
               delete channels[ch];
             }
           });
-          return api;
+          return this;
         }
       };
     },
@@ -327,44 +336,38 @@ export const createBroker = (options = {}) => {
     /**
      * Install broker methods on target object
      */
-    install(target, forced = false) {
+    install: (target, forced = false) => {
       if (!utils.isObj(target)) {
-        return api;
+        return this;
       }
 
-      Object.keys(api).forEach(key => {
-        const value = api[key];
+      Object.keys(this).forEach(key => {
+        const value = this[key];
         if (typeof value === 'function' && (forced || !target[key])) {
-          target[key] = value.bind(api);
+          target[key] = value.bind(this);
         }
       });
 
-      return api;
+      return this;
     },
 
     /**
      * Get all active channels
      */
-    getChannels() {
+    getChannels: () => {
       return Object.keys(channels).filter(channel =>
-        channels[channel] && channels[channel].length > 0
+        this.channels[channel] && channels[channel].length > 0
       );
     },
 
     /**
      * Get subscriber count for a channel
      */
-    getSubscriberCount(channel) {
-      return (channels[channel] && channels[channel].length) || 0;
+    getSubscriberCount: (channel) => {
+      return (this.channels[channel] && channels[channel].length) || 0;
     }
   };
 
-  // Auto-install if target provided in options
-  if (options.target && utils.isObj(options.target)) {
-    api.install(options.target);
-  }
-
-  return api;
 };
-
-export default createBroker;
+export const createBroker = new Broker();
+export default { Broker, createBroker };

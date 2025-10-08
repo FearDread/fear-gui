@@ -1,4 +1,5 @@
 // gui.js - Main entry point with functional design
+import { $ } from "jQuery";
 import { utils } from './utils';
 import { createRegistry } from './registry';
 import { createBroker } from './broker';
@@ -14,7 +15,7 @@ export const GUI = (($) => {
       throw new Error('FEAR GUI requires jQuery library.');
     }
     // GUI this.state
-    this.this.state = {
+    this.state = {
       config: {
         logLevel: 0,
         name: 'FEAR_GUI',
