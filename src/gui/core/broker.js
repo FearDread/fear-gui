@@ -4,50 +4,43 @@ import { utils } from './utils';
 /**
  * Create a new EventBroker instance
  * @param {Object} options - Configuration options
- * @param {boolean} options.cascade - Enable cascading events to parent channels
+ * @param {boolean} options.cascade - Enable cascading events to parent this.channels
  * @param {boolean} options.fireOrigin - Use original origin in cascaded events
  * @param {boolean} options.debug - Enable debug logging
  * @returns {Object} Broker this
  */
 export const Broker = function(options = {}) {
-  const _this = this;
+  const self = this;
   this.channels = {};
   this.cascade = options.cascade || false;
   this.fireOrigin = options.fireOrigin || false;
   this.debug = options.debug || false;
 
   // ==================== Private Methods ====================
-  
-  this._log = (message) => {
-    if (debug && console && console.log) {
-      console.log('[EventBroker]', message);
-    }
-  };
-
   this._delete = (channel, callback, context) => {
-    if (!channels[channel]) {
+    if (!this.channels[channel]) {
       return [];
     }
 
-    const originalLength = channels[channel].length;
+    const originalLength = this.channels[channel].length;
 
-    channels[channel] = channels[channel].filter(sub => {
+    this.channels[channel] = this.channels[channel].filter(sub => {
       if (callback && sub.callback === callback) return false;
       if (context && sub.context === context) return false;
       if (!callback && !context && sub.context === this) return false;
       return true;
     });
 
-    const removed = originalLength - channels[channel].length;
+    const removed = originalLength - this.channels[channel].length;
     if (removed > 0) {
       log(`Removed ${removed} subscription(s) from '${channel}'`);
     }
 
-    return channels[channel];
+    return this.channels[channel];
   };
 
   this._setupTasks = (data, channel, origin) => {
-    const subscribers = channels[channel] || [];
+    const subscribers = this.channels[channel] || [];
 
     return subscribers.map(sub => () => {
       return new Promise((resolve, reject) => {
@@ -118,7 +111,7 @@ export const Broker = function(options = {}) {
     },
 
     /**
-     * Unsubscribe from channels
+     * Unsubscribe from this.channels
      */
     remove: (channel, callback, context) => {
       const type = typeof channel;
@@ -133,7 +126,7 @@ export const Broker = function(options = {}) {
           }
 
         case 'function':
-          Object.keys(channels).forEach(id => {
+          Object.keys(this.channels).forEach(id => {
             _this._delete(id, channel);
           });
 
@@ -141,7 +134,7 @@ export const Broker = function(options = {}) {
           this.clear();
 
         case 'object' && channel !== null:
-          Object.keys(channels).forEach(id => {
+          Object.keys(this.channels).forEach(id => {
             this._delete(id, null, channel);
           });
       } 
@@ -178,8 +171,8 @@ export const Broker = function(options = {}) {
      * Remove all subscriptions
      */
     clear() {
-      Object.keys(channels).forEach(k => delete channels[k]);
-      log('All channels cleared');
+      Object.keys(this.channels).forEach(k => delete this.channels[k]);
+      log('All this.channels cleared');
       return this;
     },
 
@@ -224,7 +217,7 @@ export const Broker = function(options = {}) {
 
       return utils.run.series(tasks)
         .then(result => {
-          // Handle cascading to parent channels
+          // Handle cascading to parent this.channels
           if (cascade) {
             
             const segments = channel.split('/');
@@ -322,10 +315,10 @@ export const Broker = function(options = {}) {
         getSubscriberCount: (channel) =>
           this.getSubscriberCount(prefix + channel),
         clear: () => {
-          const channelKeys = Object.keys(channels);
+          const channelKeys = Object.keys(this.channels);
           channelKeys.forEach(ch => {
             if (ch.startsWith(prefix)) {
-              delete channels[ch];
+              delete this.channels[ch];
             }
           });
           return this;
@@ -352,11 +345,11 @@ export const Broker = function(options = {}) {
     },
 
     /**
-     * Get all active channels
+     * Get all active this.channels
      */
-    getChannels: () => {
-      return Object.keys(channels).filter(channel =>
-        this.channels[channel] && channels[channel].length > 0
+    getthis.channels: () => {
+      return Object.keys(this.channels).filter(channel =>
+        this.channels[channel] && this.channels[channel].length > 0
       );
     },
 
@@ -364,7 +357,7 @@ export const Broker = function(options = {}) {
      * Get subscriber count for a channel
      */
     getSubscriberCount: (channel) => {
-      return (this.channels[channel] && channels[channel].length) || 0;
+      return (this.channels[channel] && this.channels[channel].length) || 0;
     }
   };
 

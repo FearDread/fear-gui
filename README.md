@@ -1,600 +1,853 @@
-# FEAR Framework
+#### `.start(moduleId, options)`
+Start one or more modules.
 
-> **F**ramework for **E**nhanced **A**sset **R**endering  
-> A comprehensive, lightweight jQuery framework for building modern portfolio websites and landing pages.
-
-[![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](https://github.com/feardread/fear-framework)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![jQuery](https://img.shields.io/badge/jQuery-3.0%2B-yellow.svg)](https://jquery.com)
-[![Size](https://img.shields.io/badge/minified-~15kb-orange.svg)](#)
-
-## ✨ Features
-
-- **🎯 Modular Architecture** - Enable only the components you need
-- **🎨 Built-in Animations** - Smooth scroll-triggered animations with Intersection Observer
-- **🧭 Simple Router** - Hash-based navigation with smooth scrolling
-- **⚡ Lightweight** - ~15kb minified, built on jQuery
-- **📱 Responsive** - Mobile-first approach with modern CSS
-- **🔧 Extensible** - Easy custom module integration
-- **🎭 Event-Driven** - Comprehensive event system for module communication
-
-## 🚀 Quick Start
-
-### Installation
-
-**CDN (Recommended)**
-```html
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fear-framework@4.0.0/dist/fear.min.js"></script>
-```
-
-**NPM**
-```bash
-npm install fear-framework
-```
-
-**Download**
-```html
-<script src="path/to/jquery.min.js"></script>
-<script src="path/to/fear.min.js"></script>
-```
-
-### Basic Usage
-
-**Auto-initialization (Recommended)**
-```html
-<body data-fear>
-  <!-- Your content here -->
-  <div class="fear-fade-in">This will animate on scroll</div>
-</body>
-```
-
-**Manual initialization**
 ```javascript
-// Initialize with defaults
-FEAR.init();
+// Start single module
+await $.FEAR.gui.start('myModule');
 
-// Initialize with options
-FEAR.init(document, {
-  debug: true,
-  modules: {
-    animations: true,
-    router: true,
-    loader: false
-  }
-});
+// Start with options
+await $.FEAR.gui.start('myModule', { theme: 'dark' });
 
-// jQuery plugin style
-$('body').fear({
-  debug: true,
-  autoInit: true
+// Start multiple modules
+await $.FEAR.gui.start(['module1', 'module2']);
+
+// Start all registered modules
+await $.FEAR.gui.start();
+```
+
+#### `.stop(moduleId)`
+Stop one or more modules.
+
+```javascript
+// Stop single module
+await $.FEAR.gui.stop('myModule');
+
+// Stop all modules
+await $.FEAR.gui.stop();
+```
+
+#### `.use(plugin, options)`
+Register a plugin.
+
+```javascript
+const myPlugin = (gui, options) => {
+  return {
+    load: (sandbox) => { /* ... */ },
+    unload: (sandbox) => { /* ... */ }
+  };
+};
+
+$.FEAR.gui.use(myPlugin, { debug: true });
+```
+
+#### `.boot()`
+Initialize all registered plugins.
+
+```javascript
+await $.FEAR.gui.boot();
+```
+
+### Broker API
+
+#### `.add(channel, callback, context)`
+Subscribe to an event.
+
+```javascript
+$.FEAR.gui.broker.add('user:login', (data) => {
+  console.log('User:', data.username);
 });
 ```
 
-## 📚 Documentation
-
-### Core Modules
-
-| Module | Description | Dependencies |
-|--------|-------------|--------------|
-| `animations` | Scroll-triggered animations | None |
-| `router` | Hash-based navigation | None |
-| `loader` | Page loading animations | None |
-| `typed` | Typewriter text effects | [Typed.js](https://github.com/mattboldt/typed.js) |
-| `swiper` | Touch sliders | [Swiper](https://swiperjs.com) |
-| `magnificPopup` | Lightbox modals | [Magnific Popup](https://dimsemenov.com/plugins/magnific-popup/) |
-| `countdown` | Countdown timers | [jQuery Countdown](http://keith-wood.name/countdown.html) |
-| `vegas` | Background slideshows | [Vegas](http://vegas.jaysalvat.com) |
-| `skillbars` | Animated progress bars | None |
-| `mailchimp` | Newsletter integration | [jQuery AjaxChimp](https://github.com/scdoshi/jquery-ajaxchimp) |
-| `contactForm` | Contact form handling | None |
-| `particles` | Particle backgrounds | [Particles.js](https://vincentgarreau.com/particles.js/) |
-
-### Configuration
+#### `.emit(channel, data, origin)`
+Emit event to all subscribers.
 
 ```javascript
-FEAR.init(document, {
-  // Core settings
-  debug: false,
-  autoInit: true,
-  namespace: 'fear',
-  
-  // Module enablement
-  modules: {
-    loader: true,
-    typed: true,
-    swiper: true,
-    magnificPopup: true,
-    countdown: true,
-    vegas: true,
-    skillbars: true,
-    mailchimp: true,
-    contactForm: true,
-    particles: true,
-    animations: true,
-    router: false
-  },
+$.FEAR.gui.broker.emit('user:login', { username: 'john' });
+```
 
-  // Animation settings
-  animations: {
-    duration: 600,
-    easing: 'ease-in-out',
-    offset: 100,
-    useIntersectionObserver: true,
-    classes: {
-      animate: 'fear-animate',
-      animated: 'fear-animated',
-      fadeIn: 'fear-fade-in',
-      slideUp: 'fear-slide-up',
-      slideDown: 'fear-slide-down',
-      slideLeft: 'fear-slide-left',
-      slideRight: 'fear-slide-right',
-      zoomIn: 'fear-zoom-in',
-      zoomOut: 'fear-zoom-out'
-    }
-  },
+#### `.fire(channel, data)`
+Fire event to first subscriber only.
 
-  // Router settings
-  router: {
-    hashNavigation: true,
-    smoothScroll: true,
-    scrollOffset: 80,
-    activeClass: 'active',
-    routes: {}
-  },
+```javascript
+$.FEAR.gui.broker.fire('data:request', { id: 123 });
+```
 
-  // Event callbacks
-  callbacks: {
-    onInit: null,
-    onReady: null,
-    onLoadComplete: null,
-    onDestroy: null,
-    onModuleInit: null,
-    onModuleDestroy: null,
-    onRouteChange: null,
-    onAnimationComplete: null
-  }
+#### `.once(channel, callback, context)`
+Subscribe for one-time execution.
+
+```javascript
+$.FEAR.gui.broker.once('app:ready', () => {
+  console.log('App initialized!');
 });
 ```
 
-### API Methods
+#### `.waitFor(channel, timeout)`
+Wait for an event with optional timeout.
 
-#### Core Methods
 ```javascript
-// Framework control
-FEAR.init(element, options)    // Initialize framework
-FEAR.destroy()                 // Destroy framework instance
-FEAR.extend(options)          // Extend configuration
-FEAR.config(key, value)       // Get/set configuration
-
-// Module management
-FEAR.use(name, module)        // Register custom module
-FEAR.enable(moduleName)       // Enable module
-FEAR.disable(moduleName)      // Disable module
-FEAR.module(moduleName)       // Get module instance
-
-// Information
-FEAR.version()                // Get framework version
-FEAR.isInit()                // Check if initialized
-FEAR.modules()               // List active modules
+const result = await $.FEAR.gui.broker.waitFor('data:loaded', 5000);
+console.log(result.data);
 ```
+
+#### `.namespace(name)`
+Create namespaced broker interface.
+
+```javascript
+const userEvents = $.FEAR.gui.broker.namespace('user');
+userEvents.emit('login', userData);
+// Emits on 'user/login' channel
+```
+
+### Sandbox API
+
+Each module receives a sandbox with these methods:
 
 #### Event Methods
 ```javascript
-FEAR.on(event, callback)      // Listen to event
-FEAR.off(event, callback)     // Remove event listener
-FEAR.emit(event, data)        // Emit event
-FEAR.once(event, callback)    // Listen once
+sandbox.add(channel, callback)
+sandbox.emit(channel, data)
+sandbox.fire(channel, data)
+sandbox.once(channel, callback)
+sandbox.waitFor(channel, timeout)
 ```
 
-#### Helper Methods
+#### jQuery Methods
 ```javascript
-FEAR.animate(selector)        // Trigger animations
-FEAR.navigate(route)          // Navigate to route
-FEAR.route()                 // Get current route
+sandbox.$(selector)              // Enhanced jQuery query
+sandbox.fetch(url, options)      // Promise-based AJAX
+sandbox.ready()                  // DOM ready promise
+sandbox.loaded()                 // Window load promise
 ```
 
-### Events
-
-The framework emits various events you can listen to:
-
+#### Utility Methods
 ```javascript
-// Framework events
-FEAR.on('fear:init', (data) => {
-  console.log('Framework initialized', data);
-});
-
-FEAR.on('fear:ready', () => {
-  console.log('DOM ready, modules initialized');
-});
-
-FEAR.on('fear:loadComplete', () => {
-  console.log('Window loaded, all modules ready');
-});
-
-// Module events
-FEAR.on('module:registered', ({ name, instance }) => {
-  console.log(`Module ${name} registered`);
-});
-
-FEAR.on('module:unregistered', ({ name }) => {
-  console.log(`Module ${name} unregistered`);
-});
-
-// Animation events
-FEAR.on('animation:complete', ({ element }) => {
-  console.log('Element animated', element);
-});
-
-// Router events
-FEAR.on('route:change', ({ route, previousRoute }) => {
-  console.log(`Route changed: ${previousRoute} -> ${route}`);
-});
+sandbox.timeout(ms, fn)          // Promise-based timeout
+sandbox.interval(fn, ms, max)    // Cancellable interval
+sandbox.memoize(fn, cache)       // Function memoization
+sandbox.hitch(fn, ...args)       // Partial application
 ```
 
-## 🎨 Animations
-
-FEAR includes a built-in animation system with CSS classes:
-
-### Available Animation Classes
-
-```html
-<div class="fear-fade-in">Fade in on scroll</div>
-<div class="fear-slide-up">Slide up on scroll</div>
-<div class="fear-slide-down">Slide down on scroll</div>
-<div class="fear-slide-left">Slide left on scroll</div>
-<div class="fear-slide-right">Slide right on scroll</div>
-<div class="fear-zoom-in">Zoom in on scroll</div>
-<div class="fear-zoom-out">Zoom out on scroll</div>
+#### Resource Loading
+```javascript
+sandbox.loadCSS(url)
+sandbox.loadScript(url)
+sandbox.loadResources([...])
 ```
 
-### Manual Animation Trigger
+#### Registry Access
+```javascript
+sandbox.registry.get(name)
+sandbox.registry.has(name)
+sandbox.registry.list()
+```
+
+## 🎨 Advanced Usage
+
+### Cascading Events
 
 ```javascript
-// Animate specific elements
-FEAR.animate('.my-elements');
+const broker = $.FEAR.createBroker({ cascade: true });
 
-// Listen for animation completion
-FEAR.on('animation:complete', ({ element }) => {
-  console.log('Animation completed for:', element);
-});
+broker.add('app/user/login', () => console.log('Specific'));
+broker.add('app/user', () => console.log('User events'));
+broker.add('app', () => console.log('All app events'));
+
+broker.emit('app/user/login', data);
+// Logs all three in order
 ```
 
-## 🧭 Router
-
-Simple hash-based routing with smooth scrolling:
-
-### Setup
+### Creating Multiple Instances
 
 ```javascript
-FEAR.init(document, {
-  modules: { router: true },
-  router: {
-    hashNavigation: true,
-    smoothScroll: true,
-    scrollOffset: 80,
-    routes: {
-      'home': (route) => {
-        console.log('Navigated to home');
-      },
-      'about': (route) => {
-        console.log('Navigated to about');
-      }
-    }
-  }
-});
-```
+// Admin panel
+const admin = $.FEAR({ name: 'AdminPanel' });
+admin.create('dashboard', ...);
 
-### Usage
+// Public site
+const site = $.FEAR({ name: 'PublicSite' });
+site.create('homepage', ...);
 
-```html
-<!-- Navigation links -->
-<nav>
-  <a href="#home">Home</a>
-  <a href="#about">About</a>
-  <a href="#contact">Contact</a>
-</nav>
-
-<!-- Target sections -->
-<section id="home">Home content</section>
-<section id="about">About content</section>
-<section id="contact">Contact content</section>
-```
-
-```javascript
-// Programmatic navigation
-FEAR.navigate('about');
-
-// Get current route
-const currentRoute = FEAR.route();
-
-// Listen to route changes
-FEAR.on('route:change', ({ route, previousRoute }) => {
-  console.log(`Navigated from ${previousRoute} to ${route}`);
-});
-```
-
-## 🔧 Custom Modules
-
-Create and register custom modules:
-
-```javascript
-// Define custom module
-const CustomModule = {
-  init: function(config) {
-    console.log('Custom module initialized with config:', config);
-    // Module initialization logic
-    return Promise.resolve();
-  },
-  
-  destroy: function() {
-    console.log('Custom module destroyed');
-    // Cleanup logic
-  }
-};
-
-// Register module
-FEAR.use('customModule', CustomModule);
-
-// Enable in configuration
-FEAR.extend({
-  modules: {
-    customModule: true
-  },
-  customModule: {
-    // Custom module configuration
-    setting1: 'value1',
-    setting2: 'value2'
-  }
-});
-```
-
-## 📱 Component Examples
-
-### Loader Screen
-
-```html
-<div class="loader">
-  <div class="loader__logo">
-    <img src="logo.png" alt="Logo">
-  </div>
-</div>
-
-<main id="main">
-  <!-- Your main content -->
-</main>
-```
-
-### Typed Text Effect
-
-```html
-<div class="animated-headline">
-  <span id="typed"></span>
-</div>
-
-<div id="typed-strings" style="display: none;">
-  <p>Welcome to FEAR Framework</p>
-  <p>Build Amazing Portfolios</p>
-  <p>With Ease and Style</p>
-</div>
-```
-
-### Swiper Slider
-
-```html
-<div class="swiper">
-  <div class="swiper-wrapper">
-    <div class="swiper-slide">Slide 1</div>
-    <div class="swiper-slide">Slide 2</div>
-    <div class="swiper-slide">Slide 3</div>
-  </div>
-  <div class="swiper-pagination"></div>
-  <div class="swiper-button-next"></div>
-  <div class="swiper-button-prev"></div>
-</div>
-```
-
-### Skill Bars
-
-```html
-<div class="skillbar" data-percent="90">
-  <div class="skillbar-title">JavaScript</div>
-  <div class="skillbar-bar">
-    <div class="skillbar-percent">90%</div>
-  </div>
-</div>
-```
-
-### Contact Form
-
-```html
-<form id="sayhello-form" class="sayhello">
-  <div class="form">
-    <input type="text" name="name" placeholder="Your Name" required>
-    <input type="email" name="email" placeholder="Your Email" required>
-    <textarea name="message" placeholder="Your Message" required></textarea>
-    <button type="submit">Send Message</button>
-  </div>
-  
-  <div class="reply-group">
-    <p>Thank you! Your message has been sent.</p>
-  </div>
-</form>
-```
-
-## 🎯 Advanced Usage
-
-### Multiple Instances
-
-```javascript
-// Different configurations for different sections
-$('#header').fear({
-  modules: { animations: true, router: true }
-});
-
-$('#portfolio').fear({
-  modules: { swiper: true, magnificPopup: true }
-});
+// Each has isolated modules and events
 ```
 
 ### Dynamic Module Loading
 
 ```javascript
-// Conditionally enable modules
-if (window.innerWidth > 768) {
-  FEAR.enable('particles');
+// Load module conditionally
+if (userIsAdmin) {
+  await $.FEAR.gui.start('adminModule');
 } else {
-  FEAR.disable('particles');
+  await $.FEAR.gui.start('guestModule');
 }
-
-// Load modules based on user interaction
-$('#enable-animations').click(() => {
-  FEAR.enable('animations');
-});
 ```
 
-### Custom Event Handling
+### Error Handling
 
 ```javascript
-// Create custom workflow
-FEAR.on('fear:ready', () => {
-  // Start custom initialization
-  initCustomFeatures();
-});
-
-FEAR.on('route:change', ({ route }) => {
-  // Update analytics
-  gtag('config', 'GA_MEASUREMENT_ID', {
-    page_path: `/#${route}`
+$.FEAR.gui.start('myModule')
+  .catch(err => {
+    console.error('Module failed:', err.message);
+    // Fallback or retry logic
   });
-});
-
-FEAR.on('animation:complete', ({ element }) => {
-  // Trigger next animation sequence
-  if (element.classList.contains('trigger-next')) {
-    FEAR.animate('.next-elements');
-  }
-});
 ```
 
-## 🎨 CSS Framework Integration
-
-FEAR works great with popular CSS frameworks:
-
-### With Bootstrap
-
-```html
-<div class="container">
-  <div class="row">
-    <div class="col-md-6 fear-slide-left">
-      <h2>Left Content</h2>
-    </div>
-    <div class="col-md-6 fear-slide-right">
-      <h2>Right Content</h2>
-    </div>
-  </div>
-</div>
-```
-
-### With Tailwind CSS
-
-```html
-<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-  <div class="fear-fade-in bg-white p-6 rounded-lg shadow">
-    <h3 class="text-xl font-bold">Card 1</h3>
-  </div>
-  <div class="fear-fade-in bg-white p-6 rounded-lg shadow">
-    <h3 class="text-xl font-bold">Card 2</h3>
-  </div>
-</div>
-```
-
-## 🔍 Debugging
-
-Enable debug mode to see detailed console logs:
+### Module Communication
 
 ```javascript
-FEAR.init(document, {
-  debug: true
+// Module A - Publisher
+$.FEAR.gui.create('moduleA', (sandbox) => {
+  return {
+    load() {
+      sandbox.add('data:ready', (data) => {
+        console.log('Received:', data.value);
+      });
+    }
+  };
 });
-
-// Or enable after initialization
-FEAR.config('debug', true);
 ```
 
-Debug output includes:
-- Module initialization/destruction
-- Event emissions
-- Route changes
-- Animation triggers
-- Error messages
+### Plugin Example
 
-## 📦 Building from Source
+```javascript
+const validationPlugin = (gui, options) => {
+  console.log('Validation plugin initialized');
+  
+  return {
+    // Called before each module loads
+    load(sandbox, pluginOptions) {
+      // Add validation method to sandbox
+      sandbox.validate = (data, rules) => {
+        // Validation logic
+        return { valid: true, errors: [] };
+      };
+      
+      console.log(`Plugin loaded for module: ${sandbox.module}`);
+    },
+    
+    // Called after each module unloads
+    unload(sandbox) {
+      delete sandbox.validate;
+      console.log(`Plugin unloaded for module: ${sandbox.module}`);
+    }
+  };
+};
+
+// Register plugin
+$.FEAR.gui.use(validationPlugin, { strict: true });
+
+// Now all modules get sandbox.validate() method
+$.FEAR.gui.create('myModule', (sandbox) => {
+  return {
+    load() {
+      const result = sandbox.validate({ name: 'John' }, { name: 'required' });
+      console.log('Valid:', result.valid);
+    }
+  };
+});
+```
+
+### jQuery Plugin Creation
+
+```javascript
+$.FEAR.gui.create('tabs', (sandbox) => {
+  return {
+    // Use 'fn' instead of 'load' for jQuery plugins
+    fn: function($element, options) {
+      this.$el = $element;
+      this.opts = $.extend({}, {
+        activeClass: 'active',
+        event: 'click'
+      }, options);
+      
+      this.init = function() {
+        this.$el.find('.tab').on(this.opts.event, (e) => {
+          this.activate($(e.currentTarget));
+          sandbox.emit('tab:changed', { 
+            tab: $(e.currentTarget).data('tab') 
+          });
+        });
+      };
+      
+      this.activate = function($tab) {
+        this.$el.find('.tab').removeClass(this.opts.activeClass);
+        $tab.addClass(this.opts.activeClass);
+      };
+      
+      this.destroy = function() {
+        this.$el.find('.tab').off(this.opts.event);
+      };
+      
+      this.init();
+      return this;
+    }
+  };
+});
+
+// Start to register as jQuery plugin
+$.FEAR.gui.start('tabs');
+
+// Use as standard jQuery plugin
+$('.tabs-container').tabs({ activeClass: 'selected' });
+```
+
+## 🔧 Configuration Options
+
+```javascript
+$.FEAR.gui.configure({
+  logLevel: 0,        // 0: all, 1: warnings, 2: errors only
+  name: 'MyApp',      // Application name
+  mode: 'single',     // 'single' or 'multiple'
+  animations: true,   // Enable animations
+  jquery: true        // jQuery integration
+});
+```
+
+## 📦 Installation
+
+### Via NPM
+
+```bash
+npm install fear-gui
+```
+
+### Via CDN
+
+```html
+<!-- jQuery (required) -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<!-- FEAR GUI -->
+<script src="https://unpkg.com/fear-gui@2.0.0/dist/jquery.fear.gui.min.js"></script>
+
+<!-- or jsDelivr -->
+<script src="https://cdn.jsdelivr.net/npm/fear-gui@2.0.0/dist/jquery.fear.gui.min.js"></script>
+```
+
+### ES Module (Modern Bundlers)
+
+```javascript
+import { FEAR, utils, createBroker } from 'fear-gui';
+import $ from 'jquery';
+
+// Make jQuery global for FEAR
+window.jQuery = window.$ = $;
+
+const app = FEAR({ name: 'ModernApp' });
+```
+
+## 🏗️ Building from Source
+
+### Prerequisites
+
+- Node.js 14+
+- npm or yarn
+
+### Build Steps
 
 ```bash
 # Clone repository
-git clone https://github.com/feardread/fear-framework.git
-cd fear-framework
+git clone https://github.com/yourorg/fear-gui.git
+cd fear-gui
 
 # Install dependencies
 npm install
 
-# Build for production
+# Build all formats
 npm run build
 
-# Start development server
+# Development mode (watch for changes)
 npm run dev
 
-# Run tests
-npm test
+# Clean build artifacts
+npm run clean
+```
+
+### Build Outputs
+
+```
+dist/
+├── jquery.fear.gui.js       # UMD development build
+├── jquery.fear.gui.min.js   # UMD production build (minified)
+├── fear.esm.js              # ES Module build
+└── fear.cjs.js              # CommonJS build
+```
+
+## 📝 Examples
+
+### Complete Todo App
+
+```javascript
+$.FEAR.gui.configure({ name: 'TodoApp' });
+
+// Todo storage module
+$.FEAR.gui.create('todoStorage', (sandbox) => {
+  let todos = [];
+  
+  return {
+    load() {
+      sandbox.add('todo:add', (data) => {
+        todos.push({ 
+          id: sandbox.utils.unique(8), 
+          text: data.text, 
+          done: false 
+        });
+        sandbox.emit('todos:updated', { todos });
+      });
+      
+      sandbox.add('todo:toggle', (data) => {
+        const todo = todos.find(t => t.id === data.id);
+        if (todo) todo.done = !todo.done;
+        sandbox.emit('todos:updated', { todos });
+      });
+      
+      sandbox.add('todo:remove', (data) => {
+        todos = todos.filter(t => t.id !== data.id);
+        sandbox.emit('todos:updated', { todos });
+      });
+    }
+  };
+});
+
+// Todo UI module
+$.FEAR.gui.create('todoUI', (sandbox) => {
+  return {
+    load() {
+      const $input = sandbox.$('#todo-input');
+      const $list = sandbox.$('#todo-list');
+      const $add = sandbox.$('#add-todo');
+      
+      // Add todo
+      $add.on('click', () => {
+        const text = $input.val().trim();
+        if (text) {
+          sandbox.emit('todo:add', { text });
+          $input.val('');
+        }
+      });
+      
+      // Update UI when todos change
+      sandbox.add('todos:updated', (data) => {
+        $list.empty();
+        data.todos.forEach(todo => {
+          const $item = $(`
+            <li class="${todo.done ? 'done' : ''}">
+              <input type="checkbox" ${todo.done ? 'checked' : ''}>
+              <span>${todo.text}</span>
+              <button class="remove">×</button>
+            </li>
+          `);
+          
+          $item.find('input').on('change', () => {
+            sandbox.emit('todo:toggle', { id: todo.id });
+          });
+          
+          $item.find('.remove').on('click', () => {
+            sandbox.emit('todo:remove', { id: todo.id });
+          });
+          
+          $list.append($item);
+        });
+      });
+      
+      // Initial render
+      sandbox.emit('todo:add', { text: 'Welcome to FEAR GUI!' });
+    }
+  };
+});
+
+// Start all modules
+$.FEAR.gui.start(['todoStorage', 'todoUI']);
+```
+
+### Real-time Chat Module
+
+```javascript
+$.FEAR.gui.create('chat', (sandbox) => {
+  return {
+    async load() {
+      await sandbox.ready();
+      
+      const $messages = sandbox.$('#messages');
+      const $input = sandbox.$('#message-input');
+      const $send = sandbox.$('#send-message');
+      
+      // Connect to WebSocket or polling
+      const addMessage = (msg) => {
+        const $msg = $(`
+          <div class="message">
+            <span class="user">${msg.user}:</span>
+            <span class="text">${msg.text}</span>
+            <span class="time">${msg.time}</span>
+          </div>
+        `);
+        
+        $messages.append($msg);
+        $messages.scrollTop($messages[0].scrollHeight);
+      };
+      
+      // Send message
+      $send.on('click', async () => {
+        const text = $input.val().trim();
+        if (!text) return;
+        
+        try {
+          const response = await sandbox.fetch('/api/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+          });
+          
+          addMessage(response.data);
+          $input.val('');
+        } catch (err) {
+          sandbox.warn('Failed to send message:', err);
+        }
+      });
+      
+      // Listen for new messages
+      sandbox.add('chat:message', addMessage);
+      
+      // Poll for new messages
+      const poller = sandbox.interval(async () => {
+        const response = await sandbox.fetch('/api/messages/recent');
+        response.data.forEach(msg => {
+          sandbox.emit('chat:message', msg);
+        });
+      }, 5000);
+      
+      return poller;
+    },
+    
+    unload() {
+      // Cleanup handled by sandbox
+    }
+  };
+});
+```
+
+## 🧪 Testing
+
+```javascript
+// Example test with module
+describe('FEAR GUI Module', () => {
+  let gui;
+  
+  beforeEach(() => {
+    gui = $.FEAR({ name: 'TestApp' });
+  });
+  
+  it('should create and start module', async () => {
+    let loaded = false;
+    
+    gui.create('testModule', (sandbox) => {
+      return {
+        load() {
+          loaded = true;
+          return Promise.resolve();
+        }
+      };
+    });
+    
+    await gui.start('testModule');
+    expect(loaded).toBe(true);
+  });
+  
+  it('should communicate via events', (done) => {
+    gui.broker.add('test:event', (data) => {
+      expect(data.value).toBe(123);
+      done();
+    });
+    
+    gui.broker.emit('test:event', { value: 123 });
+  });
+});
 ```
 
 ## 🤝 Contributing
 
+Contributions are welcome! Please follow these steps:
+
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ### Development Guidelines
 
 - Follow existing code style
-- Write tests for new features
+- Add tests for new features
 - Update documentation
-- Test across different browsers
-- Keep bundle size minimal
+- Keep commits atomic and descriptive
+- Test in multiple browsers
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details
 
 ## 🙏 Acknowledgments
 
-- **jQuery** - The foundation that makes it all possible
-- **Typed.js** - Beautiful typewriter effects
-- **Swiper** - Modern touch slider
-- **Magnific Popup** - Responsive lightbox plugin
-- **Vegas** - Background slideshow plugin
-- **Particles.js** - Lightweight particle animations
+- Inspired by modern JavaScript frameworks
+- Built with Rollup and Babel
+- Powered by jQuery
 
-## 📞 Support
+## 📚 Resources
 
-- 📧 Email: support@fear-framework.com
-- 💬 Discord: [FEAR Framework Community](https://discord.gg/fear-framework)
-- 📝 Issues: [GitHub Issues](https://github.com/feardread/fear-framework/issues)
-- 📖 Documentation: [Official Docs](https://fear-framework.com/docs)
+- [Documentation](https://github.com/yourorg/fear-gui/wiki)
+- [Examples](https://github.com/yourorg/fear-gui/tree/main/examples)
+- [API Reference](https://github.com/yourorg/fear-gui/blob/main/docs/API.md)
+- [Quick Start Guide](https://github.com/yourorg/fear-gui/blob/main/QUICK_START.md)
+- [Build Guide](https://github.com/yourorg/fear-gui/blob/main/BUILD_GUIDE.md)
+
+## 🐛 Known Issues
+
+- None currently reported
 
 ## 🗺️ Roadmap
 
-- [ ] Vue.js version
-- [ ] React version
 - [ ] TypeScript definitions
-- [ ] CLI tool for project scaffolding
-- [ ] More built-in animations
-- [ ] Theme system
-- [ ] Plugin marketplace
+- [ ] React adapter
+- [ ] Vue adapter
+- [ ] CLI tool for scaffolding
+- [ ] DevTools extension
+- [ ] Module marketplace
+
+## 💬 Support
+
+- [GitHub Issues](https://github.com/yourorg/fear-gui/issues)
+- [Stack Overflow](https://stackoverflow.com/questions/tagged/fear-gui)
+- [Discord Community](https://discord.gg/fear-gui)
+
+## ⭐ Show Your Support
+
+Give a ⭐️ if this project helped you!
 
 ---
 
-Made with ❤️ by [FearDread](https://github.com/feardread)
+Made with ❤️ by the FEAR GUI team {
+      sandbox.emit('data:ready', { value: 123 });
+    }
+  };
+});
+
+// Module B - Subscriber
+$.FEAR.gui.create('moduleB', (sandbox) => {
+  return {
+    load()# ⚡ FEAR GUI
+
+> A powerful, modular JavaScript framework with jQuery integration for building scalable web applications
+
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/yourorg/fear-gui)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+## ✨ Features
+
+- 📦 **Modular Architecture** - Create independent, reusable modules with clear lifecycle hooks
+- 🔌 **Plugin System** - Extend functionality with custom plugins
+- 📡 **Event Broker** - Powerful pub/sub system for inter-module communication
+- 📋 **Module Registry** - Track and manage all modules with lifecycle events
+- 🎯 **Sandbox Environment** - Isolated API for each module with jQuery integration
+- ⚡ **Promise-Based** - Modern async/await patterns throughout
+- 🛠️ **Rich Utilities** - Helper functions for common operations
+- 🎨 **jQuery Plugin Support** - Create standard jQuery plugins easily
+- 📦 **Multiple Builds** - UMD, ESM, and CommonJS formats
+- 🔍 **TypeScript Ready** - Full type definitions included
+- ⚙️ **Zero Dependencies** - Only requires jQuery as peer dependency
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+npm install fear-gui
+```
+
+Or use via CDN:
+
+```html
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://unpkg.com/fear-gui@2.0.0/dist/jquery.fear.gui.min.js"></script>
+```
+
+### Basic Usage
+
+```javascript
+// Configure the framework
+$.FEAR.gui.configure({
+  name: 'MyApp',
+  logLevel: 1
+});
+
+// Create a module
+$.FEAR.gui.create('greeting', (sandbox) => {
+  return {
+    load(options) {
+      sandbox.$('#button').on('click', () => {
+        sandbox.emit('greeting:clicked', { 
+          message: options.message 
+        });
+      });
+    }
+  };
+});
+
+// Start the module
+$.FEAR.gui.start('greeting', { message: 'Hello World!' });
+```
+
+## 📖 Documentation
+
+### Table of Contents
+
+- [Core Concepts](#core-concepts)
+- [API Reference](#api-reference)
+- [Advanced Usage](#advanced-usage)
+- [Build Configuration](#build-configuration)
+- [Examples](#examples)
+
+## 🎯 Core Concepts
+
+### Modules
+
+Modules are independent units of functionality with defined lifecycle hooks:
+
+```javascript
+$.FEAR.gui.create('myModule', (sandbox) => {
+  return {
+    // Required: Called when module starts
+    load(options) {
+      // Initialize module
+      return Promise.resolve();
+    },
+    
+    // Optional: Called when module stops
+    unload() {
+      // Cleanup
+    },
+    
+    // Optional: Called when module is destroyed
+    destroy() {
+      // Final cleanup
+    }
+  };
+});
+```
+
+### Sandbox
+
+Each module receives a sandbox with isolated APIs:
+
+```javascript
+sandbox.$(selector)           // Enhanced jQuery selector
+sandbox.emit(event, data)     // Emit event to all subscribers
+sandbox.fire(event, data)     // Fire event to first subscriber
+sandbox.add(event, callback)  // Subscribe to event
+sandbox.fetch(url, options)   // Promise-based AJAX
+sandbox.timeout(ms, fn)       // Promise-based timeout
+sandbox.registry              // Access module registry
+sandbox.utils                 // Utility functions
+```
+
+### Event Broker
+
+Pub/sub messaging system for module communication:
+
+```javascript
+// Subscribe to events
+$.FEAR.gui.broker.add('user:login', (data) => {
+  console.log('User logged in:', data.username);
+});
+
+// Emit to all subscribers
+$.FEAR.gui.broker.emit('user:login', { username: 'john' });
+
+// Fire to first subscriber only
+$.FEAR.gui.broker.fire('user:login', { username: 'john' });
+
+// One-time subscription
+$.FEAR.gui.broker.once('app:ready', () => {
+  console.log('App is ready!');
+});
+
+// Wait for event with timeout
+await $.FEAR.gui.broker.waitFor('data:loaded', 5000);
+
+// Create namespaced broker
+const ns = $.FEAR.gui.broker.namespace('myapp');
+ns.emit('user:login', data); // Emits on 'myapp/user:login'
+```
+
+### Registry
+
+Track and manage all registered modules:
+
+```javascript
+// Listen for registry events
+$.FEAR.gui.registry.on('module:registered', (data) => {
+  console.log('Registered:', data.name);
+});
+
+// Check if module exists
+if ($.FEAR.gui.registry.has('myModule')) {
+  const instance = $.FEAR.gui.registry.get('myModule');
+}
+
+// List all modules
+const modules = $.FEAR.gui.registry.list();
+
+// Set/get global config
+$.FEAR.gui.registry.setGlobal({ apiUrl: 'https://api.example.com' });
+const config = $.FEAR.gui.registry.getGlobal();
+
+// Clear all modules
+$.FEAR.gui.registry.clear();
+```
+
+## 🔧 API Reference
+
+### GUI API
+
+#### `$.FEAR(options)`
+Create a new FEAR instance.
+
+```javascript
+const app = $.FEAR({ name: 'MyApp', logLevel: 0 });
+```
+
+#### `$.FEAR.gui`
+Singleton instance, pre-initialized.
+
+```javascript
+$.FEAR.gui.start('myModule');
+```
+
+#### `.configure(options)`
+Configure the framework.
+
+```javascript
+$.FEAR.gui.configure({
+  logLevel: 0,      // 0: all, 1: warnings, 2: errors
+  name: 'MyApp'
+});
+```
+
+#### `.create(id, creator, options)`
+Register a new module.
+
+```javascript
+$.FEAR.gui.create('myModule', (sandbox) => {
+  return {
+    load(opts) { /* ... */ }
+  };
+}, { defaultOption: 'value' });
+```
+
+#### `.start(moduleId, options)`
+Start one or more modules.
+
+```javascript
+// Start single module
+await $.FEAR.gui.start('myModule');
+
+// Start with options
+await $.FEAR.gui
