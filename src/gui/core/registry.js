@@ -6,10 +6,11 @@ import { Broker } from './broker';
  * @param {Object} options - Global configuration options
  * @returns {Object} Registry API
  */
-export const Registry = (() => {
-  return function create(options = {}) {
+export function Registry(options = {}) {
+
     const modules = new Map();
     const broker = new Broker();
+
     let globalOptions = options;
 
     const register = (name, instance) => {
@@ -107,7 +108,7 @@ export const Registry = (() => {
       fire,
       broker
     };
-  }
-})()
-export const createRegistry = () => new Registry().create();
-export default createRegistry;
+}
+
+export const createRegistry = () => new Registry();
+export default { Registry, createRegistry };

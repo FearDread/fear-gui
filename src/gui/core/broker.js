@@ -1,9 +1,11 @@
 import { utils } from './utils';
 
-const Broker = (() => {
-
-  return function create(options = {}) {
- const self = this;
+/**
+ * Event Broker - Pub/Sub messaging system with channel support
+ * Provides event-driven communication between modules
+ */
+function Broker(options = {}) {
+  const self = this;
   
   // Internal state
   this.cascade = options.cascade || false;
@@ -384,47 +386,12 @@ const Broker = (() => {
   if (options.target && utils.isObj(options.target)) {
     this.install(options.target);
   }
-  }
-
-})();
-
-/**
- * Event Broker - Pub/Sub messaging system with channel support
- * Provides event-driven communication between modules
- */
-
-// ==================== Factory Function ====================
+}
 
 /**
  * Create a new EventBroker instance
  * @param {Object} options - Configuration options
  * @returns {EventBroker} New broker instance
  */
-const createBroker = (options = {}) => {
-  return new Broker.create(options);
-};
-
-// ==================== Static Convenience Methods ====================
-
-Broker.on = (channel, callback, context) => 
-  new Broker().create().add(channel, callback, context);
-
-Broker.off = (channel, callback, context) => 
-  new Broker().create().remove(channel, callback, context);
-
-Broker.once = (channel, callback, context) => 
-  new Broker().create().once(channel, callback, context);
-
-Broker.fire = (channel, data) => 
-  new Broker().create().fire(channel, data);
-
-Broker.emit = (channel, data, origin) => 
-  new Broker().create().emit(channel, data, origin);
-
-Broker.waitFor = (channel, timeout) => 
-  new Broker().create().waitFor(channel, timeout);
-
-// ==================== Exports ====================
-
-export { Broker, createBroker };
-export default createBroker;
+export const createBroker = (options = {}) => new Broker(options);
+export default { Broker, createBroker };

@@ -1,27 +1,26 @@
 // gui.js - Main entry point with functional design
+import { $ } from "jQuery";
 import { utils } from './utils';
 import { createRegistry } from './registry';
 import { createBroker } from './broker';
 import { createSandbox } from './sandbox';
 
-export const GUI = (($) => {
-
-  return function() {
+export function GUI() {
     const self = this;
 
     if (typeof $ === 'undefined' || $ === null) {
       throw new Error('FEAR GUI requires jQuery library.');
     }
-    // GUI state
-    this.state = {
-      config: {
+    this.config = {
         logLevel: 0,
         name: 'FEAR_GUI',
         mode: 'single',
         version: '1.0.1',
         jquery: true,
         animations: false
-      },
+    };
+    // GUI state
+    this.state = {
       modules: {},
       plugins: [],
       instances: {},
@@ -29,34 +28,32 @@ export const GUI = (($) => {
       running: {},
       imports: []
     };
-
     // Create module registry
     this.registry = createRegistry(this.state.config);
     // Create broker and event system
     this.broker = createBroker();
-
-    // Debug logger
+    // this.debug logger
     this.debug = {
       level: 0,
       history: [],
       timeout: 5000,
 
       warn: (...args) => {
-        if (debug.level < 2) {
+        if (this.debug.level < 2) {
           const logArgs = ['WARN:', ...args];
-          debug._logger('warn', logArgs);
+          this.debug._logger('warn', logArgs);
         }
       },
 
       log: (...args) => {
-        if (debug.level < 1) {
-          const logArgs = ['Debug:', ...args];
-          debug._logger('log', logArgs);
+        if (this.debug.level < 1) {
+          const logArgs = ['this.debug:', ...args];
+          this.debug._logger('log', logArgs);
         }
       },
 
       _logger: (type, arr) => {
-        debug.history.push({ type, args: arr });
+        this.debug.history.push({ type, args: arr });
 
         if (console[type]?.apply) {
           console[type].apply(console, arr);
@@ -65,7 +62,6 @@ export const GUI = (($) => {
         }
       }
     };
-
     // Private helpers
     this._runSandboxPlugins = (ev, sb) => {
       const tasks = this.state.plugins
@@ -171,19 +167,13 @@ export const GUI = (($) => {
     };
 
     // Public API
-    const gui = {
-      config: this.state.config,
-      debug,
-      registry,
-      broker,
-      utils,
-
+    return {
       configure: (options) => {
         if (options && utils.isObj(options)) {
-          state.config = utils.merge(state.config, options);
-          debug.level = state.config.logLevel || 0;
+          this.config = utils.merge(this.config, options);
+          this.debug.level = this.config.logLevel || 0;
         }
-        return gui;
+        return this;
       },
 
       create: (id, creator, options = {}) => {
@@ -192,17 +182,17 @@ export const GUI = (($) => {
           utils.isType('object', options, 'option parameter');
 
         if (error) {
-          debug.warn(`could not register module '${id}': ${error}`);
-          return gui;
+          this.debug.warn(`could not register module '${id}': ${error}`);
+          return this;
         }
 
         if (state.modules[id]) {
-          debug.log(`module ${id} was already registered`);
-          return gui;
+          this.debug.log(`module ${id} was already registered`);
+          return this;
         }
 
         state.modules[id] = { id, creator, options };
-        return gui;
+        return this;
       },
 
       start: (moduleId, opt = {}) => {
@@ -222,17 +212,17 @@ export const GUI = (($) => {
 
         const error = utils.isType('string', moduleId, 'module ID') ||
           utils.isType('object', opt, 'second parameter') ||
-          (!state.modules[moduleId] ? "module doesn't exist" : undefined);
+          (!this.state.modules[moduleId] ? "module doesn't exist" : undefined);
 
         if (error) {
           return Promise.reject(new Error(error));
         }
 
-        if (state.running[id] === true) {
+        if (this.state.running[id] === true) {
           return Promise.reject(new Error('module was already started'));
         }
 
-        return gui.boot()
+        return this.boot()
           .then(() => createInstance(moduleId, opt))
           .then(({ instance, options }) => {
             if (instance.load && typeof instance.load === 'function') {
@@ -240,19 +230,19 @@ export const GUI = (($) => {
 
               if (loadResult && typeof loadResult.then === 'function') {
                 return loadResult.then(() => {
-                  state.running[id] = true;
+                  self.state.running[id] = true;
                 });
               } else {
-                state.running[id] = true;
+                self.state.running[id] = true;
                 return Promise.resolve();
               }
             } else {
-              state.running[id] = true;
+              self.state.running[id] = true;
               return Promise.resolve();
             }
           })
           .catch(err => {
-            debug.warn(err);
+            this.debug.warn(err);
             throw new Error('could not start module: ' + err.message);
           });
       },
@@ -317,7 +307,7 @@ export const GUI = (($) => {
             return new plugin.fn(this, options);
           };
         } else {
-          debug.log('Error :: Missing ' + plugin + ' fn() method.');
+          this.debug.log('Error :: Missing ' + plugin + ' fn() method.');
         }
         return gui;
       },
@@ -352,17 +342,12 @@ export const GUI = (($) => {
       },
 
       attach: async (imports) => {
-        debug.log('Dynamic async module loading.');
-        debug.log('Imports:', imports);
+        this.debug.log('Dynamic async module loading.');
+        this.debug.log('Imports:', imports);
       }
     };
+};
 
-    debug.warn('GUI initialized', gui);
-
-    return gui;
-  };
-})(jQuery);
-
-
-export const FEAR = ($) => new GUI($);
-export default FEAR;
+export const createGUI = () => new GUI();
+export { GUI as FEAR } 
+export default { FEAR, createGUI };
