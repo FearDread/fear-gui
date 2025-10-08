@@ -1,32 +1,67 @@
 {
   "name": "fear-gui",
-  "version": "1.0.0",
-  "description": "Frontend Lightweight GUI Framework",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Modular GUI framework with jQuery integration",
+  "main": "dist/fear.cjs.js",
+  "module": "dist/fear.esm.js",
+  "browser": "dist/jquery.fear.gui.js",
+  "unpkg": "dist/jquery.fear.gui.min.js",
+  "jsdelivr": "dist/jquery.fear.gui.min.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "public",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npx rollup -c "
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "dev": "rollup -c -w",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "test": "echo \"No tests yet\" && exit 0",
+    "prepublishOnly": "npm run build",
+    "serve": "npx http-server -p 8080 -o example.html"
   },
+  "keywords": [
+    "jquery",
+    "plugin",
+    "framework",
+    "gui",
+    "modular",
+    "pubsub",
+    "registry",
+    "mvc",
+    "frontend"
+  ],
+  "author": "FearDread ghaptonstall@gmail.com",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/FearDread/fear-gui.git"
+    "url": "https://github.com/FearDread/fear-gui.git"
   },
-  "author": "Garrett Haptonstall (FearDread)",
-  "license": "ISC",
   "bugs": {
     "url": "https://github.com/FearDread/fear-gui/issues"
   },
   "homepage": "https://github.com/FearDread/fear-gui#readme",
-  "dependencies": {
-    "@babel/core": "^7.28.4",
-    "@babel/preset-env": "^7.28.3",
+  "peerDependencies": {
+    "jquery": ">=3.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.9",
+    "@babel/preset-env": "^7.23.9",
     "@rollup/plugin-babel": "^6.0.4",
-    "@rollup/plugin-commonjs": "^28.0.6",
-    "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^5.0.5",
     "@rollup/plugin-terser": "^0.4.4",
-    "rollup": "^4.50.2",
-    "rollup-plugin-peer-deps-external": "^2.2.4",
-    "rollup-plugin-terser": "^7.0.2"
+    "rimraf": "^5.0.5",
+    "rollup": "^4.9.6"
+  },
+  "dependencies": {},
+  "optionalDependencies": {
+    "jquery": "^3.7.1"
   }
 }
