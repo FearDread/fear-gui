@@ -361,6 +361,5 @@ export const Broker = function(options = {}) {
   };
 };
 
-
 export const createBroker = new Broker().create();
 export default { Broker, createBroker };

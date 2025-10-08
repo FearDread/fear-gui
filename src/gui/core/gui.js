@@ -1,15 +1,23 @@
 // gui.js - Main entry point with functional design
 import { $ } from "jQuery";
 import { utils } from './utils';
-import { createRegistry } from './registry';
-import { createBroker } from './broker';
-import { createSandbox } from './sandbox';
+import { Registry } from './registry';
+import { Broker } from './broker';
+import { SandBox } from './sandbox';
 
-export const GUI = (function () {
+export const GUI = function () {
 
-    const self = this;
-    const debug = { history: [], level: this.config.logLevel, timeout: 5000, warn: utils.logger(debug),log: utils.logger(debug) }
+    const gui = this;
+    
     this.config = { logLevel: 0, name: 'FEAR_GUI', version: '2.0.0' };
+    this.debug = { 
+      history: [], 
+      level: gui.config.logLevel, 
+      timeout: 5000, 
+      warn: utils.logger(gui.debug || {}),
+      log: utils.logger(gui.debug || {})
+    };
+    
     // GUI state
     this.state = {
       modules: {},
@@ -22,14 +30,8 @@ export const GUI = (function () {
 
     // Create broker and event system
     this.broker = new Broker().create();
-    this.registry = new Registry().create(this.state.config);
-    this.debug = {
-      level: 0,
-      history: [],
-      timeout: 5000,
-      warn: utils.warn,
-      log: utils.logger(this.debug)
-    };
+    this.registry = new Registry().create(this.config);
+    this.utils = utils;
 
     // Private helpers
     this._runInstPlugins = (handler, $gui) => {
@@ -43,11 +45,12 @@ export const GUI = (function () {
     this._createInst = (moduleId, opts) => {
       const id = opts.instanceId || moduleId;
       if (this.state.instances[id]) {
-        return Promise.resolve({ instance: state.instances[id], options: opts.options });
+        return Promise.resolve({ instance: this.state.instances[id], options: opts.options });
       }
 
       const module = this.state.modules[moduleId];
       const iOpts = { ...module.options, ...opts.options };
+
       const sb = new SandBox().create(gui, id, iOpts, moduleId);
 
       return this._runInstPlugins('load', sb)
@@ -62,10 +65,11 @@ export const GUI = (function () {
             throw new Error("module has no 'load' or 'fn' method");
           }
 
-          self.state.instances[id] = instance;
-          self.state.sandboxes[id] = sb;
+          gui.state.instances[id] = instance;
+          gui.state.sandboxes[id] = sb;
+
           // Register instance in registry
-          self.registry.register(id, instance);
+          gui.registry.register(id, instance);
           return { instance, options: iOpts };
         });
     };
@@ -73,7 +77,7 @@ export const GUI = (function () {
     this._startInst = (mods) => {
       if (!mods) mods = Object.keys(this.state.modules);
 
-      const tasks = mods.map(mid => () => self.start(mid, self.state.modules[mid].options));
+      const tasks = mods.map(mid => () => gui.start(mid, gui.state.modules[mid].options));
 
       return utils.run.parallel(tasks);
     };
@@ -82,13 +86,12 @@ export const GUI = (function () {
     return {
       configure: (options) => {
         if (options && utils.isObj(options)) {
-          this.config = utils.merge(this.config, options);
-          this.registry.setGlobal(this.config);
-
-          debug.level = this.config.logLevel || 0;
+          gui.config = utils.merge(gui.config, options);
+          gui.registry.setGlobal(gui.config);
+          gui.debug.level = gui.config.logLevel || 0;
         }
 
-        return this;
+        return gui;
       },
 
       create: (id, creator, options = {}) => {
@@ -97,71 +100,71 @@ export const GUI = (function () {
           utils.isType('object', options, 'option parameter');
 
         if (error) {
-          debug.warn(`could not register module '${id}': ${error}`);
-          return this;
+          gui.debug.warn(`could not register module '${id}': ${error}`);
+          return gui;
         }
 
-        this.state.modules[id] = { id, creator, options };
-        return this;
+        gui.state.modules[id] = { id, creator, options };
+        return gui;
       },
 
       start: (moduleId, opt = {}) => {
         const id = opt.instanceId || moduleId;
         const error = utils.isType('string', moduleId, 'module ID') ||
           utils.isType('object', opt, 'second parameter') ||
-          (!this.state.modules[moduleId] ? "module doesn't exist" : undefined);
+          (!gui.state.modules[moduleId] ? "module doesn't exist" : undefined);
 
-        if (!moduleId) return this._startInst();
+        if (!moduleId) return gui._startInst();
 
-        if (utils.isArr(moduleId)) return this._startInst(moduleId);
+        if (utils.isArr(moduleId)) return gui._startInst(moduleId);
 
-        if (utils.isFunc(moduleId)) return this._startInst();
+        if (utils.isFunc(moduleId)) return gui._startInst();
 
         if (error) return Promise.reject(new Error(error));
 
-        if (this.state.running[id] === true) {
+        if (gui.state.running[id] === true) {
           return Promise.reject(new Error('module was already started'));
         }
 
-        return this.boot()
-          .then(() => self._createInst(moduleId, opt))
+        return gui.boot()
+          .then(() => gui._createInst(moduleId, opt))
           .then(({ instance, options }) => {
             if (instance.load && typeof instance.load === 'function') {
               const loadResult = instance.load(options);
 
               if (loadResult && typeof loadResult.then === 'function') {
                 return loadResult.then(() => {
-                  self.state.running[id] = true;
+                  gui.state.running[id] = true;
                 });
               } else {
-                self.state.running[id] = true;
+                gui.state.running[id] = true;
                 return Promise.resolve();
               }
             } else {
-              self.state.running[id] = true;
+              gui.state.running[id] = true;
               return Promise.resolve();
             }
           })
           .catch(err => {
-            debug.warn(err);
+            gui.debug.warn(err);
             throw new Error('could not start module: ' + err.message);
           });
       },
 
       stop: (id) => {
         if (arguments.length === 0 || typeof id === 'function') {
-          const moduleIds = Object.keys(state.instances);
+          const moduleIds = Object.keys(gui.state.instances);
           return utils.run.parallel(moduleIds.map(mid => () => gui.stop(mid)));
         }
         
-        const instance = state.instances[id];
+        const instance = gui.state.instances[id];
         if (!instance) return Promise.resolve();
         
-        delete state.instances[id];
-        broker.remove(instance);
-        registry.unregister(id);
+        delete gui.state.instances[id];
+        gui.broker.remove(instance);
+        gui.registry.unregister(id);
         
-        return runSandboxPlugins('unload', state.sandboxes[id])
+        return gui._runInstPlugins('unload', gui.state.sandboxes[id])
           .then(() => {
             if (instance.unload && typeof instance.unload === 'function') {
               const unloadResult = instance.unload();
@@ -171,45 +174,44 @@ export const GUI = (function () {
             }
             return Promise.resolve();
           })
-          .then(() => { delete state.running[id]; });
+          .then(() => { delete gui.state.running[id]; });
       },
 
       use: (plugin, opt) => {
+        if (!utils.isFunc(plugin)) return gui;
+
         if (utils.isArr(plugin)) {
+          
           plugin.forEach(p => {
-            if (typeof p === 'function') {
-              gui.use(p);
-            } else if (typeof p === 'object') {
-              gui.use(p.plugin, p.options);
-            }
-          });
-        } else {
-          if (!utils.isFunc(plugin)) {
-            return gui;
-          }
+            if (utils.isFunc(p)) gui.use(p);
+            if (utils.isObj(p)) gui.use(p.plugin, p.options);
 
-          this.state.plugins.push({
-            creator: plugin,
-            options: opt
-          });
+            gui.state.plugins.push({
+              creator: plugin,
+              options: opt
+            });
+          })
         }
-
+        
         return gui;
       },
 
       plugin: (plugin, module) => {
         if (plugin.fn && utils.isFunc(plugin.fn)) {
+
           $.fn[module.toLowerCase()] = function (options) {
             return new plugin.fn(this, options);
           };
+
         } else {
-          this.debug.log('Error :: Missing ' + plugin + ' fn() method.');
+          gui.debug.log('Error :: Missing ' + plugin + ' fn() method.');
         }
+
         return gui;
       },
 
       boot: () => {
-        const tasks = this.state.plugins
+        const tasks = gui.state.plugins
           .filter(plugin => plugin.booted !== true)
           .map(plugin => () => {
             return new Promise((resolve, reject) => {
@@ -239,12 +241,13 @@ export const GUI = (function () {
 
       attach: async (imports) => {
 
-        this.debug.log('Dynamic async module loading.');
-        this.debug.log('Imports:', imports);
+        gui.debug.log('Dynamic async module loading.');
+        gui.debug.log('Imports:', imports);
 
       }
     };
-})();
+};
+
 export const createGUI = () => new GUI();
 export { GUI as FEAR } 
 export default { FEAR, createGUI };

@@ -7,7 +7,7 @@ import { Broker } from './broker';
  * @returns {Object} Registry API
  */
 
-export function Registry(options = {}) {
+export const Registry = function (options = {}) {
     const modules = new Map();
     const broker = new Broker();
 
@@ -94,6 +94,7 @@ export function Registry(options = {}) {
       broker.fire(event, data);
 
     return {
+      create: () => this,
       register,
       unregister,
       get,
@@ -108,12 +109,7 @@ export function Registry(options = {}) {
       fire,
       broker
     };
-<<<<<<< HEAD
-}
+};
 
-=======
-  }
-})()
->>>>>>> d922491674410af657e8c64cadfbcd70e5c0e931
-export const createRegistry = () => new Registry();
+export const createRegistry = () => new Registry().create();
 export default { Registry, createRegistry };
