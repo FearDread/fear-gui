@@ -2,7 +2,9 @@
 (($, window, undefined) => {
 
 // ==================== PORTFOLIO MODULE ====================
-$.FEAR({ name: 'jbird - SPA' }).create('FearPortfolio', ($GUI) => {
+const jbird = $.FEAR({ name: 'jbird - SPA' });
+
+jbird.create('FearPortfolio', ($GUI) => {
   const PLUGIN_NAME = 'fearPortfolio';
   const VERSION = '2.0.0';
   
@@ -544,28 +546,8 @@ $.FEAR({ name: 'jbird - SPA' }).create('FearPortfolio', ($GUI) => {
   };
 }, defaults);
 
-// ==================== AUTO-INITIALIZATION ====================
-export const initFearPortfolio = async (options = {}) => {
-  try {
-    // Configure FEAR if needed
-    if (options.debug) {
-      FEAR.configure({ logLevel: 0 });
-    }
-    
-    // Start the portfolio module
-    await FEAR.start('FearPortfolio', options);
-    
-    console.log('Fear Portfolio initialized successfully');
-    
-    return FEAR;
-  } catch (error) {
-    console.error('Fear Portfolio initialization failed:', error);
-    throw error;
-  }
-};
-
 $(document).ready(() => {
-    gdrea.start(['FearPortfolio'])
+    jbird.start('FearPortfolio')
         .then(() => {
             console.log('%c FEAR Portfolio INITIALIZED ', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
         })
