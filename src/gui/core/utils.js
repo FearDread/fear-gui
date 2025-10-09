@@ -369,27 +369,7 @@ export const utils = {
                 throw new Error('All tasks failed');
             });
         }
-    },
-    logger: (debug) => {
-        const history = [];
-        const level = 0;
-        
-        return {
-            warn(...args) {
-                if (debug.level < 2) {
-                    console.warn('WARN:', ...args);
-                    debug.history.push({ type: 'warn', args });
-                }
-            },
-            log(...args) {
-                if (debug.level < 1) {
-                    console.log('Debug:', ...args);
-                    debug.history.push({ type: 'log', args });
-                }
-            }
-        }
     }
-
 };
 
 export default utils;

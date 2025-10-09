@@ -1,6 +1,6 @@
 import { utils } from "./utils";
 
-export const SandBox = (function () {
+export const SandBox = function () {
     const DELIM = '__';
 
     return {
@@ -20,10 +20,10 @@ export const SandBox = (function () {
                 options: options,
                 utils
             };
-
+            console.log('gui in sandbox = ', $gui)
             // Attach Broker methods to sandbox API
-            $gui._broker.install(sandbox);
-            sandbox.broker = $gui._broker;
+            $gui.broker.install(sandbox);
+            sandbox.broker = $gui.broker;
 
             sandbox.add = $gui.broker.add.bind($gui.broker);
             sandbox.remove = $gui.broker.remove.bind($gui.broker);
@@ -265,7 +265,7 @@ export const SandBox = (function () {
             return sandbox;
         }
     };
-})();
+};
 
 export const createSandbox = () => new SandBox().create();
 export default { SandBox, createSandbox };

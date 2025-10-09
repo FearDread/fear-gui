@@ -1,34 +1,19 @@
 (($, window, undefined) => {
-// ==============================
 // ============================================
 // Initialize GUI
 // ============================================
-const GUI = new $.FEAR();
-console.log('gui? ', GUI)
+const gdrea = $.FEAR({ name: "G-Drea", logLevel: 0 });
 
 // ============================================
-// jQuery Sandbox Plugin
+// jQuery GUI Plugin (Optional Enhancement)
 // ============================================
-GUI.use((gui, options) => {
+gdrea.use((gui, options) => {
     return {
-        load: (sandbox) => {
-            // Extend sandbox with jQuery helpers
-            sandbox.$ = (selector) => $(selector);
-            sandbox.timeout = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-            sandbox.fetch = async (url, opts = {}) => {
-                const { method = 'GET', data = null, dataType = 'html', cache = false } = opts;
-                
-                return new Promise((resolve, reject) => {
-                    $.ajax({
-                        url,
-                        method,
-                        data,
-                        dataType,
-                        cache,
-                        success: (response) => resolve({ data: response }),
-                        error: (xhr, status, error) => reject({ xhr, status, error })
-                    });
-                });
+        load: (GUI) => {
+            // jQuery is already available via GUI.$
+            // Add any additional custom methods here if needed
+            GUI.customHelper = (msg) => {
+                GUI.log('Custom Helper:', msg);
             };
         }
     };
@@ -37,17 +22,17 @@ GUI.use((gui, options) => {
 // ============================================
 // Core App Module
 // ============================================
-GUI.create('FearCore', (sandbox) => {
+gdrea.create('FearCore', (GUI) => {
     
     const createPreloader = () => ({
         init: async () => {
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            const $preloader = sandbox.$('#preloader');
+            const $preloader = GUI.$('#preloader');
             
             if (!isMobile) {
-                await sandbox.timeout(800);
+                await GUI.timeout(800);
                 $preloader.addClass('preloaded');
-                await sandbox.timeout(1200);
+                await GUI.timeout(1200);
                 $preloader.remove();
             } else {
                 $preloader.remove();
@@ -71,8 +56,8 @@ GUI.create('FearCore', (sandbox) => {
                         </div>
                     </div>`;
                 
-                sandbox.$('.fear_all_wrap').prepend(modalHtml);
-                $modalBox = sandbox.$('.fear_modalbox');
+                GUI.$('.fear_all_wrap').prepend(modalHtml);
+                $modalBox = GUI.$('.fear_modalbox');
                 
                 // Bind close event
                 $modalBox.find('.close a').on('click', (e) => {
@@ -99,9 +84,9 @@ GUI.create('FearCore', (sandbox) => {
 
     const createMobileMenu = () => ({
         init: async () => {
-            const $hamburger = sandbox.$('.fear_topbar .trigger .hamburger');
-            const $mobileMenu = sandbox.$('.fear_mobile_menu');
-            const $menuItems = sandbox.$('.fear_mobile_menu ul li a');
+            const $hamburger = GUI.$('.fear_topbar .trigger .hamburger');
+            const $mobileMenu = GUI.$('.fear_mobile_menu');
+            const $menuItems = GUI.$('.fear_mobile_menu ul li a');
 
             const toggleMenu = (e) => {
                 e.preventDefault();
@@ -128,7 +113,7 @@ GUI.create('FearCore', (sandbox) => {
 
     return {
         load: async (options) => {
-            sandbox.log('FearCore: Loading...');
+            GUI.log('FearCore: Loading...');
             
             const preloader = createPreloader();
             const modalManager = createModalManager();
@@ -139,20 +124,20 @@ GUI.create('FearCore', (sandbox) => {
                 await modalManager.init();
                 await mobileMenu.init();
                 
-                // Store components via registry
-                sandbox.set('preloader', preloader);
-                sandbox.set('modal', modalManager);
-                sandbox.set('mobileMenu', mobileMenu);
+                // Expose components via GUI for other modules
+                GUI.preloader = preloader;
+                GUI.modal = modalManager;
+                GUI.mobileMenu = mobileMenu;
                 
-                sandbox.log('FearCore: Loaded successfully');
+                GUI.log('FearCore: Loaded successfully');
             } catch (err) {
-                sandbox.warn('FearCore load failed:', err);
+                GUI.warn('FearCore load failed:', err);
                 throw err;
             }
         },
         
         unload: () => {
-            sandbox.log('FearCore: Unloading...');
+            GUI.log('FearCore: Unloading...');
         }
     };
 });
@@ -160,10 +145,10 @@ GUI.create('FearCore', (sandbox) => {
 // ============================================
 // Router Module
 // ============================================
-GUI.create('FearRouter', (sandbox) => {
+gdrea.create('FearRouter', (GUI) => {
     
-    const FearRouter = function() {
-        this.routes = {
+    const createRouter = () => {
+        const routes = {
             home: { name: 'home', html: null, data: null },
             about: { name: 'about', html: null, data: null },
             works: { name: 'works', html: null, data: null },
@@ -171,16 +156,16 @@ GUI.create('FearRouter', (sandbox) => {
             contact: { name: 'contact', html: null, data: null }
         };
 
-        return {
+        const router = {
             init: async () => {
-                sandbox.log('Router: Initializing...');
+                GUI.log('Router: Initializing...');
                 
                 // Bind hash change events
-                $(window).on('hashchange', () => this.route());
-                $(window).on('popstate', () => this.route());
+                $(window).on('hashchange', () => router.route());
+                $(window).on('popstate', () => router.route());
                 
                 // Trigger initial route
-                await this.route();
+                await router.route();
                 return true;
             },
 
@@ -188,81 +173,94 @@ GUI.create('FearRouter', (sandbox) => {
                 let loc = window.location.hash.replace("#", "");
                 if (loc === '') loc = 'home';
 
-                const route = this.routes[loc] || this.routes['home'];
+                const route = routes[loc] || routes['home'];
+                
+                // Emit route start event
+                GUI.emit('route:start', { path: loc });
                 
                 if (route.html !== null) {
-                    await this.render(route);
+                    await router.render(route);
                 } else {
-                    await this.fetch(route);
+                    await router.fetch(route);
                 }
+                
+                // Emit route complete event
+                GUI.emit('route:complete', { path: loc });
             },
 
             fetch: async (route) => {
                 try {
-                    const response = await sandbox.fetch(`js/fragments/${route.name}.html`, { 
+                    const response = await GUI.fetch(`js/fragments/${route.name}.html`, { 
                         cache: true 
                     });
                     route.html = response.data;
-                    await this.render(route);
+                    await router.render(route);
                 } catch (error) {
-                    sandbox.warn(`Error loading template for ${route.name}:`, error);
+                    GUI.warn(`Error loading template for ${route.name}:`, error);
+                    GUI.emit('error', error);
                     throw error;
                 }
             },
 
             fetchGitProfile: async () => {
                 try {
-                    const response = await sandbox.fetch('https://api.github.com/users/FearDread');
-                    sandbox.log('GitHub data loaded:', response.data);
+                    const response = await GUI.fetch('https://api.github.com/users/FearDread');
+                    GUI.log('GitHub data loaded:', response.data);
                     return response.data;
                 } catch (error) {
-                    sandbox.warn('Error loading GitHub profile:', error);
+                    GUI.warn('Error loading GitHub profile:', error);
+                    GUI.emit('error', error);
                     throw error;
                 }
             },
 
             render: async (source) => {
-                const $container = sandbox.$('.fear_container');
+                const $container = GUI.$('.fear_container');
                 
                 try {
-                    // Fade out
-                    await $container.animate({ opacity: 0 }, 200).promise();
+                    // Use animateAsync from GUI
+                    await $container.animateAsync({ opacity: 0 }, 200);
                     
                     // Update content
                     $container.html(source.html);
                     
                     // Fade in
-                    await $container.animate({ opacity: 1 }, 200).promise();
+                    await $container.animateAsync({ opacity: 1 }, 200);
                     
                     // Emit route rendered event
-                    sandbox.emit('route:rendered', source);
+                    GUI.emit('route:rendered', source);
                 } catch (err) {
                     // Fallback without animation
                     $container.html(source.html);
-                    sandbox.emit('route:rendered', source);
+                    GUI.emit('route:rendered', source);
                 }
             }
         };
+
+        return router;
     };
 
     return {
         load: async (options) => {
-            sandbox.log('FearRouter: Loading...');
+            GUI.log('FearRouter: Loading...');
             
-            const router = new FearRouter();
-            await router.init()
-                .then(() => {
-                    sandbox.set('router', router);
-                    sandbox.log('FearRouter: Loaded successfully');
-                })
-                .catch((err) => {
-                    sandbox.warn('FearRouter load failed:', err);
-                    throw err;
-                });
+            const router = createRouter();
+            
+            try {
+                await router.init();
+                
+                // Store router reference on GUI for access by other modules
+                GUI.router = router;
+                
+                GUI.log('FearRouter: Loaded successfully');
+            } catch (err) {
+                GUI.warn('FearRouter load failed:', err);
+                throw err;
+            }
         },
         
         unload: () => {
-            sandbox.log('FearRouter: Unloading...');
+            GUI.log('FearRouter: Unloading...');
             $(window).off('hashchange popstate');
         }
     };
@@ -271,11 +269,11 @@ GUI.create('FearRouter', (sandbox) => {
 // ============================================
 // Methods Module
 // ============================================
-GUI.create('FearMethods', (sandbox) => {
+gdrea.create('FearMethods', (GUI) => {
     
     const createMethodsManager = () => ({
         imgToSvg: async () => {
-            const $images = sandbox.$('img.svg');
+            const $images = GUI.$('img.svg');
             const promises = [];
 
             $images.each((index, img) => {
@@ -283,7 +281,7 @@ GUI.create('FearMethods', (sandbox) => {
                 const imgClass = $img.attr('class');
                 const imgURL = $img.attr('src');
 
-                const promise = sandbox.fetch(imgURL, { dataType: 'xml' })
+                const promise = GUI.fetch(imgURL, { dataType: 'xml' })
                     .then(response => {
                         const $svg = $(response.data).find('svg');
                         if (imgClass) {
@@ -292,7 +290,7 @@ GUI.create('FearMethods', (sandbox) => {
                         $svg.removeAttr('xmlns:a');
                         $img.replaceWith($svg);
                     })
-                    .catch(err => sandbox.warn('SVG conversion failed for:', imgURL, err));
+                    .catch(err => GUI.warn('SVG conversion failed for:', imgURL, err));
                 
                 promises.push(promise);
             });
@@ -301,7 +299,7 @@ GUI.create('FearMethods', (sandbox) => {
         },
 
         applyImages: async () => {
-            const $elements = sandbox.$('*[data-img-url]');
+            const $elements = GUI.$('*[data-img-url]');
             
             $elements.each((index, element) => {
                 const $el = $(element);
@@ -311,7 +309,7 @@ GUI.create('FearMethods', (sandbox) => {
         },
 
         bindLocationLinks: async () => {
-            const $buttons = sandbox.$('.href_location');
+            const $buttons = GUI.$('.href_location');
 
             $buttons.on('click', (e) => {
                 e.preventDefault();
@@ -321,7 +319,7 @@ GUI.create('FearMethods', (sandbox) => {
         },
 
         initCursor: async () => {
-            const $cursor = sandbox.$('.mouse-cursor');
+            const $cursor = GUI.$('.mouse-cursor');
             
             if ($cursor.length === 0) return false;
 
@@ -330,33 +328,36 @@ GUI.create('FearMethods', (sandbox) => {
             
             if (!cursorInner || !cursorOuter) return false;
 
-            // Subscribe to cursor events via broker
-            sandbox.listen('cursor:move', (e) => {
-                cursorInner.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
-                cursorOuter.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+            // Subscribe to cursor events via broker (use 'add' not 'listen')
+            GUI.add('cursor:move', (data) => {
+                cursorInner.style.transform = `translate(${data.clientX}px, ${data.clientY}px)`;
+                cursorOuter.style.transform = `translate(${data.clientX}px, ${data.clientY}px)`;
             });
-            sandbox.listen('cursor:hover:enter', () => {
+            
+            GUI.add('cursor:hover:enter', () => {
                 cursorInner.classList.add('cursor-hover');
                 cursorOuter.classList.add('cursor-hover');
             });
-            sandbox.listen('cursor:hover:leave', () => {
+            
+            GUI.add('cursor:hover:leave', () => {
                 cursorInner.classList.remove('cursor-hover');
                 cursorOuter.classList.remove('cursor-hover');
             });
 
             // Wire up DOM events to emit broker events
             $(window).on('mousemove', (e) => {
-                sandbox.emit('cursor:move', { 
+                GUI.emit('cursor:move', { 
                     clientX: e.clientX, 
                     clientY: e.clientY 
                 });
             });
 
             $(document.body).on('mouseenter', 'a, .fear_topbar .trigger, .cursor-pointer', () => 
-                sandbox.emit('cursor:hover:enter')
+                GUI.emit('cursor:hover:enter')
             );
+            
             $(document.body).on('mouseleave', 'a, .fear_topbar .trigger, .cursor-pointer', () => 
-                sandbox.emit('cursor:hover:leave')
+                GUI.emit('cursor:hover:leave')
             );
 
             cursorInner.style.visibility = 'visible';
@@ -366,31 +367,31 @@ GUI.create('FearMethods', (sandbox) => {
         },
 
         initContactForm: async () => {
-            const $submitBtn = sandbox.$('.contact_form #send_message');
+            const $submitBtn = GUI.$('.contact_form #send_message');
             
             $submitBtn.on('click', async (e) => {
                 e.preventDefault();
                 
                 const formData = {
-                    name: sandbox.$('.contact_form #name').val(),
-                    email: sandbox.$('.contact_form #email').val(),
-                    message: sandbox.$('.contact_form #message').val(),
-                    subject: sandbox.$('.contact_form #subject').val()
+                    name: GUI.$('.contact_form #name').val(),
+                    email: GUI.$('.contact_form #email').val(),
+                    message: GUI.$('.contact_form #message').val(),
+                    subject: GUI.$('.contact_form #subject').val()
                 };
 
-                const $returnMessage = sandbox.$('.contact_form .returnmessage');
+                const $returnMessage = GUI.$('.contact_form .returnmessage');
                 const successMsg = $returnMessage.data('success');
 
                 $returnMessage.empty();
 
                 // Validation
                 if (!formData.name || !formData.email || !formData.message) {
-                    sandbox.$('div.empty_notice').slideDown(500).delay(2000).slideUp(500);
+                    GUI.$('div.empty_notice').slideDown(500).delay(2000).slideUp(500);
                     return;
                 }
 
                 try {
-                    const response = await sandbox.fetch('http://fear.master.com/fear/api/mail/contact', {
+                    const response = await GUI.fetch('http://fear.master.com/fear/api/mail/contact', {
                         method: 'POST',
                         data: {
                             ajax_name: formData.name,
@@ -408,10 +409,11 @@ GUI.create('FearMethods', (sandbox) => {
                     } else {
                         $returnMessage.html(`<span class='contact_success'>${successMsg}</span>`);
                         $returnMessage.slideDown(500).delay(4000).slideUp(500);
-                        sandbox.$('#contact_form')[0].reset();
+                        GUI.$('#contact_form')[0].reset();
                     }
                 } catch (err) {
-                    sandbox.warn('Contact form submission failed:', err);
+                    GUI.warn('Contact form submission failed:', err);
+                    GUI.emit('error', err);
                     $returnMessage.html('<span class="contact_error">Submission failed. Please try again.</span>');
                     $returnMessage.slideDown(500).delay(3000).slideUp(500);
                 }
@@ -421,25 +423,34 @@ GUI.create('FearMethods', (sandbox) => {
 
     return {
         load: async (options) => {
-            sandbox.log('FearMethods: Loading...');
+            GUI.log('FearMethods: Loading...');
             
             const methods = createMethodsManager();
             
-            // Store methods reference
-            sandbox.set('methods', methods);
+            // Store methods reference on GUI
+            GUI.methods = methods;
+            
+            // Initialize methods on load
+            await methods.imgToSvg();
+            await methods.applyImages();
+            await methods.bindLocationLinks();
+            await methods.initCursor();
             
             // Listen for route changes to reinitialize methods
-            sandbox.listen('route:rendered', async () => {
+            GUI.add('route:rendered', async () => {
                 await methods.imgToSvg();
                 await methods.applyImages();
                 await methods.bindLocationLinks();
+                await methods.initContactForm();
             });
             
-            sandbox.log('FearMethods: Loaded successfully');
+            GUI.log('FearMethods: Loaded successfully');
         },
         
         unload: () => {
-            sandbox.log('FearMethods: Unloading...');
+            GUI.log('FearMethods: Unloading...');
+            // Remove event listeners
+            GUI.remove('route:rendered');
         }
     };
 });
@@ -447,14 +458,14 @@ GUI.create('FearMethods', (sandbox) => {
 // ============================================
 // Navigation Module
 // ============================================
-GUI.create('FearNavigation', (sandbox) => {
+gdrea.create('FearNavigation', (GUI) => {
     
     return {
         load: async (options) => {
-            sandbox.log('FearNavigation: Loading...');
+            GUI.log('FearNavigation: Loading...');
             
-            const $buttons = sandbox.$('.transition_link a');
-            const $listItems = sandbox.$('.transition_link li');
+            const $buttons = GUI.$('.transition_link a');
+            const $listItems = GUI.$('.transition_link li');
 
             $buttons.on('click', (e) => {
                 const $element = $(e.currentTarget);
@@ -466,12 +477,12 @@ GUI.create('FearNavigation', (sandbox) => {
                 }
             });
             
-            sandbox.log('FearNavigation: Loaded successfully');
+            GUI.log('FearNavigation: Loaded successfully');
         },
         
         unload: () => {
-            sandbox.log('FearNavigation: Unloading...');
-            sandbox.$('.transition_link a').off('click');
+            GUI.log('FearNavigation: Unloading...');
+            GUI.$('.transition_link a').off('click');
         }
     };
 });
@@ -479,19 +490,14 @@ GUI.create('FearNavigation', (sandbox) => {
 // ============================================
 // Bootstrap Application
 // ============================================
-GUI.configure({
-    logLevel: 1,
-    name: 'GDREA - SPA',
-    mode: 'single',
-    animations: true
+$(document).ready(() => {
+    gdrea.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation'])
+        .then(() => {
+            console.log('%c FEAR SPA INITIALIZED ', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
+        })
+        .catch(err => {
+            console.error('Failed to start application:', err);
+        });
 });
-
-GUI.start(['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation'])
-    .then(() => {
-        console.log('%c FEAR SPA INITIALIZED ', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
-    })
-    .catch(err => {
-        console.error('Failed to start application:', err);
-    });
 
 })(jQuery, window);

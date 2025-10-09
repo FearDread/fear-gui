@@ -14,8 +14,18 @@ export const GUI = function () {
     history: [],
     level: this.config.logLevel,
     timeout: 5000,
-    warn: utils.logger(this),
-    log: utils.logger(this)
+    warn(...args) {
+      if (gui.debug.level < 2) {
+        console.warn('WARN:', ...args);
+        gui.debug.history.push({ type: 'warn', args });
+      }
+    },
+    log(...args) {
+      if (gui.debug.level < 1) {
+        console.log('Debug:', ...args);
+        gui.debug.history.push({ type: 'log', args });
+      }
+    }
   };
 
   // GUI state
@@ -51,11 +61,12 @@ export const GUI = function () {
     const module = gui.state.modules[moduleId];
     const iOpts = { ...module.options, ...opts.options };
 
-    const sb = new SandBox().create(gui, id, iOpts, moduleId);
+    const sb = SandBox().create(gui, id, iOpts, moduleId);
 
     return _runInstPlugins('load', sb)
       .then(() => {
-        const instance = new module.creator(sb);
+
+        const instance = module.creator(sb);
 
         if (typeof instance.load !== 'function') {
           if (instance.fn && typeof instance.fn === 'function') {

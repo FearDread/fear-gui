@@ -10,7 +10,7 @@ import { utils } from './utils';
  * @returns {Object} Broker this
  */
 export const Broker = function(options = {}) {
-  const self = this;
+  const broker = this;
   this.channels = {};
   this.cascade = options.cascade || false;
   this.fireOrigin = options.fireOrigin || false;
@@ -81,7 +81,7 @@ export const Broker = function(options = {}) {
   // ==================== Public this ====================
 
   return {
-    create: () => { return this },
+    create: () => new Broker(),
     /**
      * Subscribe to a channel
      */
@@ -187,7 +187,7 @@ export const Broker = function(options = {}) {
         data = undefined;
       }
 
-      const tasks = setupTasks(data, channel, channel);
+      const tasks = broker._setupTasks(data, channel, channel);
 
       if (tasks.length === 0) {
         return Promise.resolve(null);
@@ -195,7 +195,7 @@ export const Broker = function(options = {}) {
 
       return utils.run.first(tasks)
         .catch(errors => {
-          throw formatErrors(errors);
+          throw broker._formatErrors(errors);
         });
     },
 
@@ -212,12 +212,12 @@ export const Broker = function(options = {}) {
       }
 
       origin = origin || channel;
-      const tasks = setupTasks(data, channel, origin);
+      const tasks = broker._setupTasks(data, channel, origin);
 
       return utils.run.series(tasks)
         .then(result => {
           // Handle cascading to parent this.channels
-          if (cascade) {
+          if (broker.cascade) {
             
             const segments = channel.split('/');
             
@@ -233,7 +233,7 @@ export const Broker = function(options = {}) {
           return result;
         })
         .catch(errors => {
-          throw formatErrors(errors);
+          throw broker._formatErrors(errors);
         });
     },
 
