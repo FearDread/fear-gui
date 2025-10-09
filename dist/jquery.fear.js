@@ -368,25 +368,7 @@ const utils = {
                 throw new Error('All tasks failed');
             });
         }
-    },
-    logger: (debug) => {
-        
-        return {
-            warn(...args) {
-                if (debug.level < 2) {
-                    console.warn('WARN:', ...args);
-                    debug.history.push({ type: 'warn', args });
-                }
-            },
-            log(...args) {
-                if (debug.level < 1) {
-                    console.log('Debug:', ...args);
-                    debug.history.push({ type: 'log', args });
-                }
-            }
-        }
     }
-
 };
 
 // src/broker.js - Event Broker Module
@@ -400,6 +382,7 @@ const utils = {
  * @returns {Object} Broker this
  */
 const Broker = function(options = {}) {
+  const broker = this;
   this.channels = {};
   this.cascade = options.cascade || false;
   this.fireOrigin = options.fireOrigin || false;
@@ -470,7 +453,7 @@ const Broker = function(options = {}) {
   // ==================== Public this ====================
 
   return {
-    create: () => { return this },
+    create: () => new Broker(),
     /**
      * Subscribe to a channel
      */
@@ -576,7 +559,7 @@ const Broker = function(options = {}) {
         data = undefined;
       }
 
-      const tasks = setupTasks(data, channel, channel);
+      const tasks = broker._setupTasks(data, channel, channel);
 
       if (tasks.length === 0) {
         return Promise.resolve(null);
@@ -584,7 +567,7 @@ const Broker = function(options = {}) {
 
       return utils.run.first(tasks)
         .catch(errors => {
-          throw formatErrors(errors);
+          throw broker._formatErrors(errors);
         });
     },
 
@@ -601,12 +584,12 @@ const Broker = function(options = {}) {
       }
 
       origin = origin || channel;
-      const tasks = setupTasks(data, channel, origin);
+      const tasks = broker._setupTasks(data, channel, origin);
 
       return utils.run.series(tasks)
         .then(result => {
           // Handle cascading to parent this.channels
-          if (cascade) {
+          if (broker.cascade) {
             
             const segments = channel.split('/');
             
@@ -622,7 +605,7 @@ const Broker = function(options = {}) {
           return result;
         })
         .catch(errors => {
-          throw formatErrors(errors);
+          throw broker._formatErrors(errors);
         });
     },
 
@@ -866,7 +849,7 @@ const Registry = function (options = {}) {
 
 const createRegistry = () => new Registry().create();
 
-const SandBox = (function () {
+const SandBox = function () {
     const DELIM = '__';
 
     return {
@@ -886,10 +869,10 @@ const SandBox = (function () {
                 options: options,
                 utils
             };
-
+            console.log('gui in sandbox = ', $gui);
             // Attach Broker methods to sandbox API
-            $gui._broker.install(sandbox);
-            sandbox.broker = $gui._broker;
+            $gui.broker.install(sandbox);
+            sandbox.broker = $gui.broker;
 
             sandbox.add = $gui.broker.add.bind($gui.broker);
             sandbox.remove = $gui.broker.remove.bind($gui.broker);
@@ -1131,7 +1114,7 @@ const SandBox = (function () {
             return sandbox;
         }
     };
-})();
+};
 
 // gui.js - Main entry point with functional design
 
@@ -1144,8 +1127,18 @@ const GUI = function () {
     history: [],
     level: this.config.logLevel,
     timeout: 5000,
-    warn: utils.logger(this),
-    log: utils.logger(this)
+    warn(...args) {
+      if (gui.debug.level < 2) {
+        console.warn('WARN:', ...args);
+        gui.debug.history.push({ type: 'warn', args });
+      }
+    },
+    log(...args) {
+      if (gui.debug.level < 1) {
+        console.log('Debug:', ...args);
+        gui.debug.history.push({ type: 'log', args });
+      }
+    }
   };
 
   // GUI state
@@ -1181,11 +1174,12 @@ const GUI = function () {
     const module = gui.state.modules[moduleId];
     const iOpts = { ...module.options, ...opts.options };
 
-    const sb = new SandBox().create(gui, id, iOpts, moduleId);
+    const sb = SandBox().create(gui, id, iOpts, moduleId);
 
     return _runInstPlugins('load', sb)
       .then(() => {
-        const instance = new module.creator(sb);
+
+        const instance = module.creator(sb);
 
         if (typeof instance.load !== 'function') {
           if (instance.fn && typeof instance.fn === 'function') {
