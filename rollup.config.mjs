@@ -6,14 +6,17 @@ export default {
   output: [
     {
       file: 'dist/jquery.fear.js', // Non-minimized (development)
-      format: 'esm'
+      format: 'esm',
+      globals: {
+        jQuery: '$'
+      },
     },
     {
       file: 'dist/jquery.fear.min.js',
       format: 'umd',
       name: 'FEAR',
       globals: {
-        jquery: '$'
+        jQuery: '$'
       },
       plugins: [
         babel({
@@ -24,7 +27,7 @@ export default {
       ]
     },
   ],
-  external: ['jquery'],
+  external: ['jQuery'],
   context: 'this'
 
 };

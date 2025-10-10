@@ -122,11 +122,11 @@ export const Model = function(data = {}) {
    * Fetch data from remote source
    */
   this.fetch = function(url, options = {}) {
-    if (!model.gui) {
-      return Promise.reject(new Error('gui not available for fetch'));
+    if (!model.$GUI) {
+      return Promise.reject(new Error('$GUI not available for fetch'));
     }
 
-    return model.gui.fetch(url, options)
+    return model.$GUI.fetch(url, options)
       .then(response => {
         if (options.parse && typeof model.parse === 'function') {
           return model.parse(response.data);
@@ -142,8 +142,8 @@ export const Model = function(data = {}) {
    * Save model data to remote source
    */
   this.save = function(url, options = {}) {
-    if (!model.gui) {
-      return Promise.reject(new Error('gui not available for save'));
+    if (!model.$GUI) {
+      return Promise.reject(new Error('$GUI not available for save'));
     }
 
     const data = model.toJSON();
@@ -154,7 +154,7 @@ export const Model = function(data = {}) {
       ...options
     };
 
-    return model.gui.fetch(url, settings)
+    return model.$GUI.fetch(url, settings)
       .then(response => response.data);
   };
 
@@ -167,9 +167,9 @@ export const Model = function(data = {}) {
 export const View = function(gui, options = {}) {
   const view = this;
   
-  this.gui = gui;
+  this.$gui = gui;
   this.options = options;
-  this.el = options.el ? gui.$(options.el) : null;
+  this.el = options.el ? $GUI.$(options.el) : null;
   this.template = options.template || null;
   this.events = options.events || {};
   this._boundEvents = [];
@@ -227,7 +227,7 @@ export const View = function(gui, options = {}) {
       const method = typeof handler === 'string' ? view[handler] : handler;
 
       if (!method) {
-        view.gui.warn(`Event handler ${handler} not found`);
+        view.$GUI.warn(`Event handler ${handler} not found`);
         return;
       }
 
@@ -334,7 +334,7 @@ export const View = function(gui, options = {}) {
 export const Controller = function(gui, options = {}) {
   const controller = this;
   
-  this.gui = gui;
+  this.$gui = gui;
   this.options = options;
   this.model = options.model || null;
   this.view = options.view || null;
@@ -412,7 +412,7 @@ export const Controller = function(gui, options = {}) {
       return Promise.reject(new Error('Model not available'));
     }
 
-    const form = controller.gui.$(formSelector);
+    const form = controller.$GUI.$(formSelector);
     if (!form.length) {
       return Promise.reject(new Error(`Form not found: ${formSelector}`));
     }
@@ -461,32 +461,34 @@ export const createView = (gui, options) => new View(gui, options);
 export const createController = (gui, options) => new Controller(gui, options);
 
 /**
- * MVC Plugin for GUI
+ * MVC Plugin for $GUI
  */
-export const MVCPlugin = function(fear, options) {
+export const MVCPlugin = function(gui, options) {
   const plugin = {};
+  console.log('mvc gui =', gui);
 
   /**
-   * Load hook - extend gui with MVC factories
+   * Load hook - extend $GUI with MVC factories
    */
-  plugin.load = function(gui) {
-    // Add MVC factories to gui
-    gui.Model = (data) => {
+  plugin.load = function($GUI) {
+    // Add MVC factories to $GUI
+    console.log("mvc sandbox = ", $GUI);
+    $GUI.Model = (data) => {
       const model = new Model(data);
-      model.gui = gui;
+      model.$GUI = $GUI;
       return model;
     };
 
-    gui.View = (opts) => new View(gui, opts);
+    $GUI.View = (opts) => new View($GUI, opts);
 
-    gui.Controller = (opts) => new Controller(gui, opts);
+    $GUI.Controller = (opts) => new Controller($GUI, opts);
 
     // Convenience method to create complete MVC setup
-    gui.createMVC = (config = {}) => {
-      const model = config.modelData ? gui.Model(config.modelData) : null;
-      const view = config.viewOptions ? gui.View(config.viewOptions) : null;
+    $GUI.createMVC = (config = {}) => {
+      const model = config.modelData ? $GUI.Model(config.modelData) : null;
+      const view = config.viewOptions ? $GUI.View(config.viewOptions) : null;
       
-      const controller = gui.Controller({
+      const controller = $GUI.Controller({
         model,
         view,
         routes: config.routes || {},
@@ -505,8 +507,6 @@ export const MVCPlugin = function(fear, options) {
 
   return plugin;
 };
-
-FEAR.use(MVCPlugin);
 
 export default { 
     Model, 

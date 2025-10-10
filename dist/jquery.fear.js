@@ -1,4 +1,3 @@
-
 const utils = {
     /* jQuery $.extend pointer */
     merge: $.extend,
@@ -1312,7 +1311,7 @@ const GUI = function() {
 
   this.plugin = function(plugin, module) {
     if (plugin.fn && utils.isFunc(plugin.fn)) {
-      $$1.fn[module.toLowerCase()] = function(options) {
+      $.fn[module.toLowerCase()] = function(options) {
         return new plugin.fn(this, options);
       };
     } else {
@@ -1364,7 +1363,6 @@ const GUI = function() {
 
 const createGUI = () => new GUI();
 const FEAR$1 = new GUI();
-var FEAR$2 = { FEAR: FEAR$1, createGUI };
 
 /**
  * Router Plugin
@@ -2448,8 +2446,6 @@ const MVCPlugin = function(fear, options) {
   return plugin;
 };
 
-FEAR.use(MVCPlugin);
-
 var MVCPlugin$1 = { 
     Model, 
     View, 
@@ -2464,7 +2460,7 @@ var MVCPlugin$1 = {
  * Performance Metrics Module
  * Monitors route loading times, cache performance, and module lifecycle events
  */
-const Metrics = FEAR.create('Metrics', function(fear, options) {
+const Metrics = FEAR$1.create('Metrics', function(fear, options) {
   const metrics = this;
   
   // Private state
@@ -2810,29 +2806,33 @@ const Metrics = FEAR.create('Metrics', function(fear, options) {
 
 // example-usage.js - How to use the refactored FEAR GUI framework
 
+
+FEAR$1.use(MVCPlugin$1);
 // Register as GUI plugin
-FEAR$2.use(function (fear, options) {
+FEAR$1.use(function (fear, options) {
+  console.log('gui in plugin', fear);
   fear.Router = Router;
 
   // Add router helper to sandbox
   return {
     load: function (gui) {
+      console.log('sandbox in plugin ', gui);
       gui.router = function (config) {
         return new Router(config);
       };
     }
   };
 });
-FEAR$2.use(MVCPlugin$1);
 
 $.FEAR = function (options) {
-  const instance = FEAR$2;
+  const instance = createGUI();
   if (options) instance.configure(options);
   instance.metrics = Metrics;
   return instance;
 };
 
-$.fear = FEAR$2;
+$.fear = $.FEAR();
+window.FEAR = FEAR$1;
 /*
 // ============================================
 // 1. Initialize the GUI

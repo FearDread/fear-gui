@@ -1,32 +1,37 @@
 // example-usage.js - How to use the refactored FEAR GUI framework
 
-import FEAR from './gui';
+import { FEAR, createGUI } from './gui';
 import Router from "../plugins/router";
 import MVCPlugin from "../plugins/mvc";
 import Metrics from "../modules/metrics";
+
+FEAR.use(MVCPlugin);
 // Register as GUI plugin
 FEAR.use(function (fear, options) {
+  console.log('gui in router', fear);
   fear.Router = Router;
 
   // Add router helper to sandbox
   return {
     load: function (gui) {
+      console.log('sandbox in plugin ', gui);
       gui.router = function (config) {
         return new Router(config);
       };
     }
   };
 });
-FEAR.use(MVCPlugin);
 
 $.FEAR = function (options) {
-  const instance = FEAR;
-  if (options) instance.configure(options);
+  const instance = options.instance ? createGUI() : options.instance;
+  if (options && options.config) instance.configure(options.config);
+
   instance.metrics = Metrics;
   return instance;
 };
 
-$.fear = FEAR;
+$.fear = $.FEAR({instance: FEAR, config: {name: "GDREA - SPA"}});
+window.FEAR = FEAR;
 /*
 // ============================================
 // 1. Initialize the GUI

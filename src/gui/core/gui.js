@@ -1,5 +1,4 @@
 // gui.js - Main entry point with functional design
-import { $ } from "jQuery";
 import { utils } from './utils';
 import { Registry } from './registry';
 import { Broker } from './broker';
@@ -265,4 +264,5 @@ export const GUI = function() {
 
 export const createGUI = () => new GUI();
 export const FEAR = new GUI();
-export default { FEAR, createGUI };
+
+export default FEAR;

@@ -1,9 +1,9 @@
-import FEAR from "../core/gui";
+import FEAR from "../core/$GUI";
 /**
  * Performance Metrics Module
  * Monitors route loading times, cache performance, and module lifecycle events
  */
-export const Metrics = FEAR.create('Metrics', function(fear, options) {
+export const Metrics = FEAR.create('Metrics', function($GUI, options) {
   const metrics = this;
   
   // Private state
@@ -70,7 +70,7 @@ export const Metrics = FEAR.create('Metrics', function(fear, options) {
       recordError: (error) => {
         if (state.enabled) {
           state.metrics.errors++;
-          gui.log('Error recorded:', error);
+          $GUI.log('Error recorded:', error);
         }
       },
 
@@ -194,65 +194,65 @@ export const Metrics = FEAR.create('Metrics', function(fear, options) {
     /**
      * Initialize the metrics module
      */
-    load: function(gui, options = {}) {
+    load: function(options = {}) {
       return Promise.resolve()
         .then(() => {
-          gui.log('Metrics module loading with options:', options);
+          $GUI.log('Metrics module loading with options:', options);
 
           // Create performance monitor
           metrics.monitor = createPerformanceMonitor(options.enabled !== false);
 
           // Set up event listeners for performance tracking
-          gui.add('route:start', (data) => {
+          $GUI.add('route:start', (data) => {
             const routeKey = `route:${data.path || 'unknown'}`;
             metrics.monitor.startTiming(routeKey);
-            gui.log('Route started:', routeKey);
+            $GUI.log('Route started:', routeKey);
           });
 
-          gui.add('route:complete', (data) => {
+          $GUI.add('route:complete', (data) => {
             const routeKey = `route:${data.path || 'unknown'}`;
             const duration = metrics.monitor.endTiming(routeKey);
-            gui.log(`Route completed: ${routeKey} in ${duration}ms`);
+            $GUI.log(`Route completed: ${routeKey} in ${duration}ms`);
             
             // Emit metrics update
-            return gui.emit('metrics:updated', metrics.monitor.getMetrics());
+            return $GUI.emit('metrics:updated', metrics.monitor.getMetrics());
           });
 
-          gui.add('module:start', (data) => {
+          $GUI.add('module:start', (data) => {
             const moduleKey = `module:${data.name || 'unknown'}`;
             metrics.monitor.startTiming(moduleKey);
-            gui.log('Module started:', moduleKey);
+            $GUI.log('Module started:', moduleKey);
           });
 
-          gui.add('module:complete', (data) => {
+          $GUI.add('module:complete', (data) => {
             const moduleKey = `module:${data.name || 'unknown'}`;
             const duration = metrics.monitor.endTiming(moduleKey);
-            gui.log(`Module loaded: ${moduleKey} in ${duration}ms`);
+            $GUI.log(`Module loaded: ${moduleKey} in ${duration}ms`);
             
             // Emit metrics update
-            return gui.emit('metrics:updated', metrics.monitor.getMetrics());
+            return $GUI.emit('metrics:updated', metrics.monitor.getMetrics());
           });
 
-          gui.add('cache:hit', () => {
+          $GUI.add('cache:hit', () => {
             metrics.monitor.recordCacheHit();
           });
 
-          gui.add('cache:miss', () => {
+          $GUI.add('cache:miss', () => {
             metrics.monitor.recordCacheMiss();
           });
 
-          gui.add('error', (error) => {
+          $GUI.add('error', (error) => {
             metrics.monitor.recordError(error);
           });
 
           // Optional UI display
           if (options.displayMetrics) {
-            metrics.$metricsDisplay = gui.$('#metrics-display');
+            metrics.$metricsDisplay = $GUI.$('#metrics-display');
             
             if (metrics.$metricsDisplay.length === 0) {
               // Create metrics display if it doesn't exist
-              metrics.$metricsDisplay = gui.$('<div id="metrics-display"></div>');
-              gui.$('body').append(metrics.$metricsDisplay);
+              metrics.$metricsDisplay = $GUI.$('<div id="metrics-display"></div>');
+              $GUI.$('body').append(metrics.$metricsDisplay);
             }
 
             // Update display periodically
@@ -262,8 +262,8 @@ export const Metrics = FEAR.create('Metrics', function(fear, options) {
             }, updateInterval);
           }
 
-          // Expose public API on gui
-          gui.metrics = {
+          // Expose public API on $GUI
+          $GUI.metrics = {
             start: (key) => metrics.monitor.startTiming(key),
             end: (key) => metrics.monitor.endTiming(key),
             cacheHit: () => metrics.monitor.recordCacheHit(),
@@ -273,7 +273,7 @@ export const Metrics = FEAR.create('Metrics', function(fear, options) {
             reset: () => metrics.monitor.reset()
           };
 
-          gui.log('Metrics module loaded successfully');
+          $GUI.log('Metrics module loaded successfully');
         });
     },
 
@@ -283,7 +283,7 @@ export const Metrics = FEAR.create('Metrics', function(fear, options) {
     unload: function() {
       return Promise.resolve()
         .then(() => {
-          gui.log('Metrics module unloading');
+          $GUI.log('Metrics module unloading');
 
           // Clear interval
           if (metrics.metricsInterval) {
@@ -297,8 +297,8 @@ export const Metrics = FEAR.create('Metrics', function(fear, options) {
             metrics.$metricsDisplay = null;
           }
 
-          // Clean up gui API
-          delete gui.metrics;
+          // Clean up $GUI API
+          delete $GUI.metrics;
         });
     },
 
@@ -308,7 +308,7 @@ export const Metrics = FEAR.create('Metrics', function(fear, options) {
     destroy: function() {
       return Promise.resolve()
         .then(() => {
-          gui.log('Metrics module destroying');
+          $GUI.log('Metrics module destroying');
           
           if (metrics.monitor) {
             metrics.monitor.reset();
@@ -332,11 +332,11 @@ export const Metrics = FEAR.create('Metrics', function(fear, options) {
         .then(() => {
           if (metrics.monitor) {
             metrics.monitor.reset();
-            return gui.emit('metrics:reset');
+            return $GUI.emit('metrics:reset');
           }
         })
         .then(() => {
-          gui.log('Metrics reset');
+          $GUI.log('Metrics reset');
         });
     }
   };
