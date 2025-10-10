@@ -4,10 +4,10 @@ import { utils } from './utils';
 /**
  * Create a new EventBroker instance
  * @param {Object} options - Configuration options
- * @param {boolean} options.cascade - Enable cascading events to parent this.channels
+ * @param {boolean} options.cascade - Enable cascading events to parent channels
  * @param {boolean} options.fireOrigin - Use original origin in cascaded events
  * @param {boolean} options.debug - Enable debug logging
- * @returns {Object} Broker this
+ * @returns {Object} Broker instance
  */
 export const Broker = function(options = {}) {
   const broker = this;
@@ -42,26 +42,22 @@ export const Broker = function(options = {}) {
 
     return subscribers.map(sub => () => {
       return new Promise((resolve, reject) => {
-        try {
-          // Check if callback expects a callback parameter (async style)
-          if (utils.hasArgs(sub.callback, 3)) {
-            sub.callback.call(sub.context, data, origin, (err, result) => {
-              err ? reject(err) : resolve(result);
-            });
-          } else {
-            const result = sub.callback.call(sub.context, data, origin);
+        // Check if callback expects a callback parameter (async style)
+        if (utils.hasArgs(sub.callback, 3)) {
+          sub.callback.call(sub.context, data, origin, (err, result) => {
+            err ? reject(err) : resolve(result);
+          });
+        } else {
+          const result = sub.callback.call(sub.context, data, origin);
 
-            // Handle promise-returning callbacks
-            if (result && typeof result.then === 'function') {
-              result.then(resolve, reject);
-            } else {
-              resolve(result);
-            }
+          // Handle promise-returning callbacks
+          if (result && typeof result.then === 'function') {
+            result.then(resolve).catch(reject);
+          } else {
+            resolve(result);
           }
-        } catch (error) {
-          reject(error);
         }
-      });
+      }).catch(error => Promise.reject(error));
     });
   };
 
@@ -78,287 +74,292 @@ export const Broker = function(options = {}) {
     return errors;
   };
 
-  // ==================== Public this ====================
+  // ==================== Public API ====================
 
-  return {
-    create: () => new Broker(),
-    /**
-     * Subscribe to a channel
-     */
-    add: (channel, callback, context) => {
-      if (typeof channel !== 'string') {
-        throw new Error('Channel must be a string');
-      }
+  this.create = () => new Broker();
 
-      if (typeof callback !== 'function') {
-        throw new Error('Callback must be a function');
-      }
+  /**
+   * Subscribe to a channel
+   */
+  this.add = function(channel, callback, context) {
+    if (typeof channel !== 'string') {
+      throw new Error('Channel must be a string');
+    }
 
-      if (!this.channels[channel]) {
-        this.channels[channel] = [];
-      }
+    if (typeof callback !== 'function') {
+      throw new Error('Callback must be a function');
+    }
 
-      const subscription = {
-        event: channel,
-        context: context || this,
-        callback: callback
-      };
+    if (!this.channels[channel]) {
+      this.channels[channel] = [];
+    }
 
-      this.channels[channel].push(subscription);
+    const subscription = {
+      event: channel,
+      context: context || this,
+      callback: callback
+    };
 
-      return this;
-    },
+    this.channels[channel].push(subscription);
 
-    /**
-     * Unsubscribe from this.channels
-     */
-    remove: (channel, callback, context) => {
-      const type = typeof channel;
+    return this;
+  };
 
-      switch (type) {
+  /**
+   * Unsubscribe from channels
+   */
+  this.remove = function(channel, callback, context) {
+    const type = typeof channel;
 
-        case 'string':
-          if (typeof callback === 'function') {
-            this._delete(channel, callback, context);
-          } else if (callback === undefined) {
-            this._delete(channel);
-          }
+    switch (type) {
+      case 'string':
+        if (typeof callback === 'function') {
+          this._delete(channel, callback, context);
+        } else if (callback === undefined) {
+          this._delete(channel);
+        }
+        break;
 
-        case 'function':
-          Object.keys(this.channels).forEach(id => {
-            _this._delete(id, channel);
-          });
+      case 'function':
+        Object.keys(this.channels).forEach(id => {
+          this._delete(id, channel);
+        });
+        break;
 
-        case 'undefined':
-          this.clear();
+      case 'undefined':
+        this.clear();
+        break;
 
-        case 'object' && channel !== null:
+      case 'object':
+        if (channel !== null) {
           Object.keys(this.channels).forEach(id => {
             this._delete(id, null, channel);
           });
-      } 
-
-      return this;
-    },
-
-    /**
-     * Subscribe to a channel for one-time execution
-     */
-    once(channel, callback, context) {
-      if (typeof channel !== 'string') {
-        throw new Error('Channel must be a string');
-      }
-
-      if (typeof callback !== 'function') {
-        throw new Error('Callback must be a function');
-      }
-
-      let fired = false;
-
-      const onceWrapper = (...args) => {
-        if (!fired) {
-          fired = true;
-          this.remove(channel, onceWrapper);
-          return callback.apply(context || this, args);
         }
-      };
-
-      return this.add(channel, onceWrapper, context);
-    },
-
-    /**
-     * Remove all subscriptions
-     */
-    clear() {
-      Object.keys(this.channels).forEach(k => delete this.channels[k]);
-      log('All this.channels cleared');
-      return this;
-    },
-
-    /**
-     * Fire event on channel (first successful handler wins)
-     */
-    fire(channel, data) {
-      if (typeof channel !== 'string') {
-        return Promise.reject(new Error('Channel must be a string'));
-      }
-
-      if (typeof data === 'function') {
-        data = undefined;
-      }
-
-      const tasks = broker._setupTasks(data, channel, channel);
-
-      if (tasks.length === 0) {
-        return Promise.resolve(null);
-      }
-
-      return utils.run.first(tasks)
-        .catch(errors => {
-          throw broker._formatErrors(errors);
-        });
-    },
-
-    /**
-     * Emit event on channel (all handlers execute in series)
-     */
-    emit(channel, data, origin) {
-      if (typeof channel !== 'string') {
-        return Promise.reject(new Error('Channel must be a string'));
-      }
-
-      if (data && utils.isFunc(data)) {
-        data = undefined;
-      }
-
-      origin = origin || channel;
-      const tasks = broker._setupTasks(data, channel, origin);
-
-      return utils.run.series(tasks)
-        .then(result => {
-          // Handle cascading to parent this.channels
-          if (broker.cascade) {
-            
-            const segments = channel.split('/');
-            
-            if (segments.length > 1) {
-              const parentChannel = segments.slice(0, -1).join('/');
-              const cascadeOrigin = fireOrigin ? origin : parentChannel;
-              
-              return this
-                .emit(parentChannel, data, cascadeOrigin)
-                .then(() => result);
-            }
-          }
-          return result;
-        })
-        .catch(errors => {
-          throw broker._formatErrors(errors);
-        });
-    },
-
-    /**
-     * Wait for an event to be fired
-     */
-    waitFor(channel, timeout) {
-      return new Promise((resolve, reject) => {
-        let timeoutId;
-
-        const cleanup = () => {
-          if (timeoutId) clearTimeout(timeoutId);
-        };
-
-        if (timeout && timeout > 0) {
-          timeoutId = setTimeout(() => {
-            this.remove(channel, handler);
-            reject(new Error(`Timeout waiting for event '${channel}' after ${timeout}ms`));
-          }, timeout);
-        }
-
-        const handler = (data, origin) => {
-          cleanup();
-          this.remove(channel, handler);
-          resolve({ data, origin, channel });
-        };
-
-        this.add(channel, handler);
-      });
-    },
-
-    /**
-     * Pipe events from one channel to another
-     */
-    pipe(source, target, broker) {
-      // Handle parameter variations
-      if (target && (target.fire || target.emit)) {
-        broker = target;
-        target = source;
-      }
-
-      if (!broker) {
-        broker = this;
-      }
-
-      // Prevent circular pipes
-      if (broker === this && source === target) {
-        return this;
-      }
-
-      this.add(source, (...args) => broker.fire(target, ...args));
-
-      return this;
-    },
-
-    /**
-     * Create a namespaced broker interface
-     */
-    namespace(namespace) {
-      const separator = '/';
-      const prefix = namespace + separator;
-
-      return {
-        add: (channel, fn, context) =>
-          this.add(prefix + channel, fn, context),
-        remove: (channel, cb, context) =>
-          this.remove(prefix + channel, cb, context),
-        fire: (channel, data) =>
-          this.fire(prefix + channel, data),
-        emit: (channel, data, origin) =>
-          this.emit(prefix + channel, data, origin),
-        once: (channel, fn, context) =>
-          this.once(prefix + channel, fn, context),
-        waitFor: (channel, timeout) =>
-          this.waitFor(prefix + channel, timeout),
-        pipe: (src, target, broker) =>
-          this.pipe(prefix + src, prefix + target, broker),
-        getSubscriberCount: (channel) =>
-          this.getSubscriberCount(prefix + channel),
-        clear: () => {
-          const channelKeys = Object.keys(this.channels);
-          channelKeys.forEach(ch => {
-            if (ch.startsWith(prefix)) {
-              delete this.channels[ch];
-            }
-          });
-          return this;
-        }
-      };
-    },
-
-    /**
-     * Install broker methods on target object
-     */
-    install: (target, forced = false) => {
-      if (!utils.isObj(target)) {
-        return this;
-      }
-
-      Object.keys(this).forEach(key => {
-        const value = this[key];
-        if (typeof value === 'function' && (forced || !target[key])) {
-          target[key] = value.bind(this);
-        }
-      });
-
-      return this;
-    },
-
-    /**
-     * Get all active this.channels
-     */
-    getchannels: () => {
-      return Object.keys(this.channels).filter(channel =>
-        this.channels[channel] && this.channels[channel].length > 0
-      );
-    },
-
-    /**
-     * Get subscriber count for a channel
-     */
-    getSubscriberCount: (channel) => {
-      return (this.channels[channel] && this.channels[channel].length) || 0;
+        break;
     }
+
+    return this;
   };
+
+  /**
+   * Subscribe to a channel for one-time execution
+   */
+  this.once = function(channel, callback, context) {
+    if (typeof channel !== 'string') {
+      throw new Error('Channel must be a string');
+    }
+
+    if (typeof callback !== 'function') {
+      throw new Error('Callback must be a function');
+    }
+
+    let fired = false;
+
+    const onceWrapper = (...args) => {
+      if (!fired) {
+        fired = true;
+        this.remove(channel, onceWrapper);
+        return callback.apply(context || this, args);
+      }
+    };
+
+    return this.add(channel, onceWrapper, context);
+  };
+
+  /**
+   * Remove all subscriptions
+   */
+  this.clear = function() {
+    Object.keys(this.channels).forEach(k => delete this.channels[k]);
+    utils.log('All channels cleared');
+    return this;
+  };
+
+  /**
+   * Fire event on channel (first successful handler wins)
+   */
+  this.fire = function(channel, data) {
+    if (typeof channel !== 'string') {
+      return Promise.reject(new Error('Channel must be a string'));
+    }
+
+    if (typeof data === 'function') {
+      data = undefined;
+    }
+
+    const tasks = broker._setupTasks(data, channel, channel);
+
+    if (tasks.length === 0) {
+      return Promise.resolve(null);
+    }
+
+    return utils.run.first(tasks)
+      .catch(errors => {
+        throw broker._formatErrors(errors);
+      });
+  };
+
+  /**
+   * Emit event on channel (all handlers execute in series)
+   */
+  this.emit = function(channel, data, origin) {
+    if (typeof channel !== 'string') {
+      return Promise.reject(new Error('Channel must be a string'));
+    }
+
+    if (data && utils.isFunc(data)) {
+      data = undefined;
+    }
+
+    origin = origin || channel;
+    const tasks = broker._setupTasks(data, channel, origin);
+
+    return utils.run.series(tasks)
+      .then(result => {
+        // Handle cascading to parent channels
+        if (broker.cascade) {
+          const segments = channel.split('/');
+
+          if (segments.length > 1) {
+            const parentChannel = segments.slice(0, -1).join('/');
+            const cascadeOrigin = broker.fireOrigin ? origin : parentChannel;
+
+            return this
+              .emit(parentChannel, data, cascadeOrigin)
+              .then(() => result);
+          }
+        }
+        return result;
+      })
+      .catch(errors => {
+        throw broker._formatErrors(errors);
+      });
+  };
+
+  /**
+   * Wait for an event to be fired
+   */
+  this.waitFor = function(channel, timeout) {
+    return new Promise((resolve, reject) => {
+      let timeoutId;
+
+      const cleanup = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+
+      if (timeout && timeout > 0) {
+        timeoutId = setTimeout(() => {
+          this.remove(channel, handler);
+          reject(new Error(`Timeout waiting for event '${channel}' after ${timeout}ms`));
+        }, timeout);
+      }
+
+      const handler = (data, origin) => {
+        cleanup();
+        this.remove(channel, handler);
+        resolve({ data, origin, channel });
+      };
+
+      this.add(channel, handler);
+    });
+  };
+
+  /**
+   * Pipe events from one channel to another
+   */
+  this.pipe = function(source, target, broker) {
+    // Handle parameter variations
+    if (target && (target.fire || target.emit)) {
+      broker = target;
+      target = source;
+    }
+
+    if (!broker) {
+      broker = this;
+    }
+
+    // Prevent circular pipes
+    if (broker === this && source === target) {
+      return this;
+    }
+
+    this.add(source, (...args) => broker.fire(target, ...args));
+
+    return this;
+  };
+
+  /**
+   * Create a namespaced broker interface
+   */
+  this.namespace = function(namespace) {
+    const separator = '/';
+    const prefix = namespace + separator;
+
+    return {
+      add: (channel, fn, context) =>
+        this.add(prefix + channel, fn, context),
+      remove: (channel, cb, context) =>
+        this.remove(prefix + channel, cb, context),
+      fire: (channel, data) =>
+        this.fire(prefix + channel, data),
+      emit: (channel, data, origin) =>
+        this.emit(prefix + channel, data, origin),
+      once: (channel, fn, context) =>
+        this.once(prefix + channel, fn, context),
+      waitFor: (channel, timeout) =>
+        this.waitFor(prefix + channel, timeout),
+      pipe: (src, target, broker) =>
+        this.pipe(prefix + src, prefix + target, broker),
+      getSubscriberCount: (channel) =>
+        this.getSubscriberCount(prefix + channel),
+      clear: () => {
+        const channelKeys = Object.keys(this.channels);
+        channelKeys.forEach(ch => {
+          if (ch.startsWith(prefix)) {
+            delete this.channels[ch];
+          }
+        });
+        return this;
+      }
+    };
+  };
+
+  /**
+   * Install broker methods on target object
+   */
+  this.install = function(target, forced = false) {
+    if (!utils.isObj(target)) {
+      return this;
+    }
+
+    Object.keys(this).forEach(key => {
+      const value = this[key];
+      if (typeof value === 'function' && (forced || !target[key])) {
+        target[key] = value.bind(this);
+      }
+    });
+
+    return this;
+  };
+
+  /**
+   * Get all active channels
+   */
+  this.getChannels = function() {
+    return Object.keys(this.channels).filter(channel =>
+      this.channels[channel] && this.channels[channel].length > 0
+    );
+  };
+
+  /**
+   * Get subscriber count for a channel
+   */
+  this.getSubscriberCount = function(channel) {
+    return (this.channels[channel] && this.channels[channel].length) || 0;
+  };
+
+  return this;
 };
 
 export const createBroker = new Broker().create();

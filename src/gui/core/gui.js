@@ -5,11 +5,11 @@ import { Registry } from './registry';
 import { Broker } from './broker';
 import { SandBox } from './sandbox';
 
-export const GUI = function () {
+export const GUI = function() {
   const gui = this;
-  
+
   this.config = { logLevel: 0, name: 'FEAR_GUI', version: '2.0.0' };
-  
+
   this.debug = {
     history: [],
     level: this.config.logLevel,
@@ -61,11 +61,10 @@ export const GUI = function () {
     const module = gui.state.modules[moduleId];
     const iOpts = { ...module.options, ...opts.options };
 
-    const sb = SandBox().create(gui, id, iOpts, moduleId);
+    const sb = new SandBox().create(gui, id, iOpts, moduleId);
 
     return _runInstPlugins('load', sb)
       .then(() => {
-
         const instance = module.creator(sb);
 
         if (typeof instance.load !== 'function') {
@@ -94,7 +93,7 @@ export const GUI = function () {
   };
 
   // Public API
-  this.configure = (options) => {
+  this.configure = function(options) {
     if (options && utils.isObj(options)) {
       gui.config = utils.merge(gui.config, options);
       gui.registry.setGlobal(gui.config);
@@ -104,7 +103,7 @@ export const GUI = function () {
     return gui;
   };
 
-  this.create = (id, creator, options = {}) => {
+  this.create = function(id, creator, options = {}) {
     const error = utils.isType('string', id, 'module ID') ||
       utils.isType('function', creator, 'creator') ||
       utils.isType('object', options, 'option parameter');
@@ -118,7 +117,7 @@ export const GUI = function () {
     return gui;
   };
 
-  this.start = (moduleId, opt = {}) => {
+  this.start = function(moduleId, opt = {}) {
     const id = opt.instanceId || moduleId;
     const error = utils.isType('string', moduleId, 'module ID') ||
       utils.isType('object', opt, 'second parameter') ||
@@ -161,7 +160,7 @@ export const GUI = function () {
       });
   };
 
-  this.stop = (id) => {
+  this.stop = function(id) {
     if (arguments.length === 0 || typeof id === 'function') {
       const moduleIds = Object.keys(gui.state.instances);
       return utils.run.parallel(moduleIds.map(mid => () => gui.stop(mid)));
@@ -174,7 +173,7 @@ export const GUI = function () {
     gui.broker.remove(instance);
     gui.registry.unregister(id);
 
-    return gui._runInstPlugins('unload', gui.state.sandboxes[id])
+    return _runInstPlugins('unload', gui.state.sandboxes[id])
       .then(() => {
         if (instance.unload && typeof instance.unload === 'function') {
           const unloadResult = instance.unload();
@@ -184,10 +183,12 @@ export const GUI = function () {
         }
         return Promise.resolve();
       })
-      .then(() => { delete gui.state.running[id]; });
+      .then(() => {
+        delete gui.state.running[id];
+      });
   };
 
-  this.use = (plugin, opt) => {
+  this.use = function(plugin, opt) {
     if (utils.isArr(plugin)) {
       plugin.forEach(p => {
         if (utils.isFunc(p)) {
@@ -210,9 +211,9 @@ export const GUI = function () {
     return gui;
   };
 
-  this.plugin = (plugin, module) => {
+  this.plugin = function(plugin, module) {
     if (plugin.fn && utils.isFunc(plugin.fn)) {
-      $.fn[module.toLowerCase()] = function (options) {
+      $.fn[module.toLowerCase()] = function(options) {
         return new plugin.fn(this, options);
       };
     } else {
@@ -222,28 +223,28 @@ export const GUI = function () {
     return gui;
   };
 
-  this.boot = () => {
+  this.boot = function() {
     const tasks = gui.state.plugins
       .filter(plugin => plugin.booted !== true)
       .map(plugin => () => {
         return new Promise((resolve, reject) => {
-          try {
-            if (utils.hasArgs(plugin.creator, 3)) {
-              plugin.creator(gui, plugin.options, (err) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  plugin.booted = true;
-                  resolve();
-                }
-              });
-            } else {
-              plugin.plugin = plugin.creator(gui, plugin.options);
-              plugin.booted = true;
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
+          if (utils.hasArgs(plugin.creator, 3)) {
+            plugin.creator(gui, plugin.options, (err) => {
+              if (err) {
+                reject(err);
+              } else {
+                plugin.booted = true;
+                resolve();
+              }
+            });
+          } else {
+            Promise.resolve()
+              .then(() => {
+                plugin.plugin = plugin.creator(gui, plugin.options);
+                plugin.booted = true;
+                resolve();
+              })
+              .catch(err => reject(err));
           }
         });
       });
@@ -251,13 +252,16 @@ export const GUI = function () {
     return utils.run.series(tasks);
   };
 
-  this.attach = async (imports) => {
-    gui.debug.log('Dynamic async module loading.');
-    gui.debug.log('Imports:', imports);
+  this.attach = function(imports) {
+    return Promise.resolve()
+      .then(() => {
+        gui.debug.log('Dynamic async module loading.');
+        gui.debug.log('Imports:', imports);
+      });
   };
 
   return this;
-}
+};
 
 export const createGUI = () => new GUI();
 export const FEAR = new GUI();
