@@ -19,8 +19,6 @@
     "build": "rollup -c",
     "build:watch": "rollup -c -w",
     "dev": "rollup -c -w",
-    "clean": "rimraf dist",
-    "prebuild": "npm run clean",
     "test": "echo \"No tests yet\" && exit 0",
     "prepublishOnly": "npm run build",
     "serve": "npx http-server -p 8080 -o example.html"
@@ -58,7 +56,7 @@
     "@rollup/plugin-replace": "^5.0.5",
     "@rollup/plugin-terser": "^0.4.4",
     "rimraf": "^5.0.5",
-    "rollup": "^4.9.6"
+    "rollup": "^4.52.4"
   },
   "dependencies": {
     "rollup-plugin-terser": "^7.0.2"

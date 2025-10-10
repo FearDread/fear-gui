@@ -376,10 +376,10 @@ const utils = {
 /**
  * Create a new EventBroker instance
  * @param {Object} options - Configuration options
- * @param {boolean} options.cascade - Enable cascading events to parent this.channels
+ * @param {boolean} options.cascade - Enable cascading events to parent channels
  * @param {boolean} options.fireOrigin - Use original origin in cascaded events
  * @param {boolean} options.debug - Enable debug logging
- * @returns {Object} Broker this
+ * @returns {Object} Broker instance
  */
 const Broker = function(options = {}) {
   const broker = this;
@@ -414,26 +414,22 @@ const Broker = function(options = {}) {
 
     return subscribers.map(sub => () => {
       return new Promise((resolve, reject) => {
-        try {
-          // Check if callback expects a callback parameter (async style)
-          if (utils.hasArgs(sub.callback, 3)) {
-            sub.callback.call(sub.context, data, origin, (err, result) => {
-              err ? reject(err) : resolve(result);
-            });
-          } else {
-            const result = sub.callback.call(sub.context, data, origin);
+        // Check if callback expects a callback parameter (async style)
+        if (utils.hasArgs(sub.callback, 3)) {
+          sub.callback.call(sub.context, data, origin, (err, result) => {
+            err ? reject(err) : resolve(result);
+          });
+        } else {
+          const result = sub.callback.call(sub.context, data, origin);
 
-            // Handle promise-returning callbacks
-            if (result && typeof result.then === 'function') {
-              result.then(resolve, reject);
-            } else {
-              resolve(result);
-            }
+          // Handle promise-returning callbacks
+          if (result && typeof result.then === 'function') {
+            result.then(resolve).catch(reject);
+          } else {
+            resolve(result);
           }
-        } catch (error) {
-          reject(error);
         }
-      });
+      }).catch(error => Promise.reject(error));
     });
   };
 
@@ -450,287 +446,292 @@ const Broker = function(options = {}) {
     return errors;
   };
 
-  // ==================== Public this ====================
+  // ==================== Public API ====================
 
-  return {
-    create: () => new Broker(),
-    /**
-     * Subscribe to a channel
-     */
-    add: (channel, callback, context) => {
-      if (typeof channel !== 'string') {
-        throw new Error('Channel must be a string');
-      }
+  this.create = () => new Broker();
 
-      if (typeof callback !== 'function') {
-        throw new Error('Callback must be a function');
-      }
+  /**
+   * Subscribe to a channel
+   */
+  this.add = function(channel, callback, context) {
+    if (typeof channel !== 'string') {
+      throw new Error('Channel must be a string');
+    }
 
-      if (!this.channels[channel]) {
-        this.channels[channel] = [];
-      }
+    if (typeof callback !== 'function') {
+      throw new Error('Callback must be a function');
+    }
 
-      const subscription = {
-        event: channel,
-        context: context || this,
-        callback: callback
-      };
+    if (!this.channels[channel]) {
+      this.channels[channel] = [];
+    }
 
-      this.channels[channel].push(subscription);
+    const subscription = {
+      event: channel,
+      context: context || this,
+      callback: callback
+    };
 
-      return this;
-    },
+    this.channels[channel].push(subscription);
 
-    /**
-     * Unsubscribe from this.channels
-     */
-    remove: (channel, callback, context) => {
-      const type = typeof channel;
+    return this;
+  };
 
-      switch (type) {
+  /**
+   * Unsubscribe from channels
+   */
+  this.remove = function(channel, callback, context) {
+    const type = typeof channel;
 
-        case 'string':
-          if (typeof callback === 'function') {
-            this._delete(channel, callback, context);
-          } else if (callback === undefined) {
-            this._delete(channel);
-          }
+    switch (type) {
+      case 'string':
+        if (typeof callback === 'function') {
+          this._delete(channel, callback, context);
+        } else if (callback === undefined) {
+          this._delete(channel);
+        }
+        break;
 
-        case 'function':
-          Object.keys(this.channels).forEach(id => {
-            _this._delete(id, channel);
-          });
+      case 'function':
+        Object.keys(this.channels).forEach(id => {
+          this._delete(id, channel);
+        });
+        break;
 
-        case 'undefined':
-          this.clear();
+      case 'undefined':
+        this.clear();
+        break;
 
-        case channel !== null:
+      case 'object':
+        if (channel !== null) {
           Object.keys(this.channels).forEach(id => {
             this._delete(id, null, channel);
           });
-      } 
-
-      return this;
-    },
-
-    /**
-     * Subscribe to a channel for one-time execution
-     */
-    once(channel, callback, context) {
-      if (typeof channel !== 'string') {
-        throw new Error('Channel must be a string');
-      }
-
-      if (typeof callback !== 'function') {
-        throw new Error('Callback must be a function');
-      }
-
-      let fired = false;
-
-      const onceWrapper = (...args) => {
-        if (!fired) {
-          fired = true;
-          this.remove(channel, onceWrapper);
-          return callback.apply(context || this, args);
         }
-      };
-
-      return this.add(channel, onceWrapper, context);
-    },
-
-    /**
-     * Remove all subscriptions
-     */
-    clear() {
-      Object.keys(this.channels).forEach(k => delete this.channels[k]);
-      log('All this.channels cleared');
-      return this;
-    },
-
-    /**
-     * Fire event on channel (first successful handler wins)
-     */
-    fire(channel, data) {
-      if (typeof channel !== 'string') {
-        return Promise.reject(new Error('Channel must be a string'));
-      }
-
-      if (typeof data === 'function') {
-        data = undefined;
-      }
-
-      const tasks = broker._setupTasks(data, channel, channel);
-
-      if (tasks.length === 0) {
-        return Promise.resolve(null);
-      }
-
-      return utils.run.first(tasks)
-        .catch(errors => {
-          throw broker._formatErrors(errors);
-        });
-    },
-
-    /**
-     * Emit event on channel (all handlers execute in series)
-     */
-    emit(channel, data, origin) {
-      if (typeof channel !== 'string') {
-        return Promise.reject(new Error('Channel must be a string'));
-      }
-
-      if (data && utils.isFunc(data)) {
-        data = undefined;
-      }
-
-      origin = origin || channel;
-      const tasks = broker._setupTasks(data, channel, origin);
-
-      return utils.run.series(tasks)
-        .then(result => {
-          // Handle cascading to parent this.channels
-          if (broker.cascade) {
-            
-            const segments = channel.split('/');
-            
-            if (segments.length > 1) {
-              const parentChannel = segments.slice(0, -1).join('/');
-              const cascadeOrigin = fireOrigin ? origin : parentChannel;
-              
-              return this
-                .emit(parentChannel, data, cascadeOrigin)
-                .then(() => result);
-            }
-          }
-          return result;
-        })
-        .catch(errors => {
-          throw broker._formatErrors(errors);
-        });
-    },
-
-    /**
-     * Wait for an event to be fired
-     */
-    waitFor(channel, timeout) {
-      return new Promise((resolve, reject) => {
-        let timeoutId;
-
-        const cleanup = () => {
-          if (timeoutId) clearTimeout(timeoutId);
-        };
-
-        if (timeout && timeout > 0) {
-          timeoutId = setTimeout(() => {
-            this.remove(channel, handler);
-            reject(new Error(`Timeout waiting for event '${channel}' after ${timeout}ms`));
-          }, timeout);
-        }
-
-        const handler = (data, origin) => {
-          cleanup();
-          this.remove(channel, handler);
-          resolve({ data, origin, channel });
-        };
-
-        this.add(channel, handler);
-      });
-    },
-
-    /**
-     * Pipe events from one channel to another
-     */
-    pipe(source, target, broker) {
-      // Handle parameter variations
-      if (target && (target.fire || target.emit)) {
-        broker = target;
-        target = source;
-      }
-
-      if (!broker) {
-        broker = this;
-      }
-
-      // Prevent circular pipes
-      if (broker === this && source === target) {
-        return this;
-      }
-
-      this.add(source, (...args) => broker.fire(target, ...args));
-
-      return this;
-    },
-
-    /**
-     * Create a namespaced broker interface
-     */
-    namespace(namespace) {
-      const separator = '/';
-      const prefix = namespace + separator;
-
-      return {
-        add: (channel, fn, context) =>
-          this.add(prefix + channel, fn, context),
-        remove: (channel, cb, context) =>
-          this.remove(prefix + channel, cb, context),
-        fire: (channel, data) =>
-          this.fire(prefix + channel, data),
-        emit: (channel, data, origin) =>
-          this.emit(prefix + channel, data, origin),
-        once: (channel, fn, context) =>
-          this.once(prefix + channel, fn, context),
-        waitFor: (channel, timeout) =>
-          this.waitFor(prefix + channel, timeout),
-        pipe: (src, target, broker) =>
-          this.pipe(prefix + src, prefix + target, broker),
-        getSubscriberCount: (channel) =>
-          this.getSubscriberCount(prefix + channel),
-        clear: () => {
-          const channelKeys = Object.keys(this.channels);
-          channelKeys.forEach(ch => {
-            if (ch.startsWith(prefix)) {
-              delete this.channels[ch];
-            }
-          });
-          return this;
-        }
-      };
-    },
-
-    /**
-     * Install broker methods on target object
-     */
-    install: (target, forced = false) => {
-      if (!utils.isObj(target)) {
-        return this;
-      }
-
-      Object.keys(this).forEach(key => {
-        const value = this[key];
-        if (typeof value === 'function' && (forced || !target[key])) {
-          target[key] = value.bind(this);
-        }
-      });
-
-      return this;
-    },
-
-    /**
-     * Get all active this.channels
-     */
-    getchannels: () => {
-      return Object.keys(this.channels).filter(channel =>
-        this.channels[channel] && this.channels[channel].length > 0
-      );
-    },
-
-    /**
-     * Get subscriber count for a channel
-     */
-    getSubscriberCount: (channel) => {
-      return (this.channels[channel] && this.channels[channel].length) || 0;
+        break;
     }
+
+    return this;
   };
+
+  /**
+   * Subscribe to a channel for one-time execution
+   */
+  this.once = function(channel, callback, context) {
+    if (typeof channel !== 'string') {
+      throw new Error('Channel must be a string');
+    }
+
+    if (typeof callback !== 'function') {
+      throw new Error('Callback must be a function');
+    }
+
+    let fired = false;
+
+    const onceWrapper = (...args) => {
+      if (!fired) {
+        fired = true;
+        this.remove(channel, onceWrapper);
+        return callback.apply(context || this, args);
+      }
+    };
+
+    return this.add(channel, onceWrapper, context);
+  };
+
+  /**
+   * Remove all subscriptions
+   */
+  this.clear = function() {
+    Object.keys(this.channels).forEach(k => delete this.channels[k]);
+    utils.log('All channels cleared');
+    return this;
+  };
+
+  /**
+   * Fire event on channel (first successful handler wins)
+   */
+  this.fire = function(channel, data) {
+    if (typeof channel !== 'string') {
+      return Promise.reject(new Error('Channel must be a string'));
+    }
+
+    if (typeof data === 'function') {
+      data = undefined;
+    }
+
+    const tasks = broker._setupTasks(data, channel, channel);
+
+    if (tasks.length === 0) {
+      return Promise.resolve(null);
+    }
+
+    return utils.run.first(tasks)
+      .catch(errors => {
+        throw broker._formatErrors(errors);
+      });
+  };
+
+  /**
+   * Emit event on channel (all handlers execute in series)
+   */
+  this.emit = function(channel, data, origin) {
+    if (typeof channel !== 'string') {
+      return Promise.reject(new Error('Channel must be a string'));
+    }
+
+    if (data && utils.isFunc(data)) {
+      data = undefined;
+    }
+
+    origin = origin || channel;
+    const tasks = broker._setupTasks(data, channel, origin);
+
+    return utils.run.series(tasks)
+      .then(result => {
+        // Handle cascading to parent channels
+        if (broker.cascade) {
+          const segments = channel.split('/');
+
+          if (segments.length > 1) {
+            const parentChannel = segments.slice(0, -1).join('/');
+            const cascadeOrigin = broker.fireOrigin ? origin : parentChannel;
+
+            return this
+              .emit(parentChannel, data, cascadeOrigin)
+              .then(() => result);
+          }
+        }
+        return result;
+      })
+      .catch(errors => {
+        throw broker._formatErrors(errors);
+      });
+  };
+
+  /**
+   * Wait for an event to be fired
+   */
+  this.waitFor = function(channel, timeout) {
+    return new Promise((resolve, reject) => {
+      let timeoutId;
+
+      const cleanup = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+
+      if (timeout && timeout > 0) {
+        timeoutId = setTimeout(() => {
+          this.remove(channel, handler);
+          reject(new Error(`Timeout waiting for event '${channel}' after ${timeout}ms`));
+        }, timeout);
+      }
+
+      const handler = (data, origin) => {
+        cleanup();
+        this.remove(channel, handler);
+        resolve({ data, origin, channel });
+      };
+
+      this.add(channel, handler);
+    });
+  };
+
+  /**
+   * Pipe events from one channel to another
+   */
+  this.pipe = function(source, target, broker) {
+    // Handle parameter variations
+    if (target && (target.fire || target.emit)) {
+      broker = target;
+      target = source;
+    }
+
+    if (!broker) {
+      broker = this;
+    }
+
+    // Prevent circular pipes
+    if (broker === this && source === target) {
+      return this;
+    }
+
+    this.add(source, (...args) => broker.fire(target, ...args));
+
+    return this;
+  };
+
+  /**
+   * Create a namespaced broker interface
+   */
+  this.namespace = function(namespace) {
+    const separator = '/';
+    const prefix = namespace + separator;
+
+    return {
+      add: (channel, fn, context) =>
+        this.add(prefix + channel, fn, context),
+      remove: (channel, cb, context) =>
+        this.remove(prefix + channel, cb, context),
+      fire: (channel, data) =>
+        this.fire(prefix + channel, data),
+      emit: (channel, data, origin) =>
+        this.emit(prefix + channel, data, origin),
+      once: (channel, fn, context) =>
+        this.once(prefix + channel, fn, context),
+      waitFor: (channel, timeout) =>
+        this.waitFor(prefix + channel, timeout),
+      pipe: (src, target, broker) =>
+        this.pipe(prefix + src, prefix + target, broker),
+      getSubscriberCount: (channel) =>
+        this.getSubscriberCount(prefix + channel),
+      clear: () => {
+        const channelKeys = Object.keys(this.channels);
+        channelKeys.forEach(ch => {
+          if (ch.startsWith(prefix)) {
+            delete this.channels[ch];
+          }
+        });
+        return this;
+      }
+    };
+  };
+
+  /**
+   * Install broker methods on target object
+   */
+  this.install = function(target, forced = false) {
+    if (!utils.isObj(target)) {
+      return this;
+    }
+
+    Object.keys(this).forEach(key => {
+      const value = this[key];
+      if (typeof value === 'function' && (forced || !target[key])) {
+        target[key] = value.bind(this);
+      }
+    });
+
+    return this;
+  };
+
+  /**
+   * Get all active channels
+   */
+  this.getChannels = function() {
+    return Object.keys(this.channels).filter(channel =>
+      this.channels[channel] && this.channels[channel].length > 0
+    );
+  };
+
+  /**
+   * Get subscriber count for a channel
+   */
+  this.getSubscriberCount = function(channel) {
+    return (this.channels[channel] && this.channels[channel].length) || 0;
+  };
+
+  return this;
 };
 
 const createBroker = new Broker().create();
@@ -849,280 +850,268 @@ const Registry = function (options = {}) {
 
 const createRegistry = () => new Registry().create();
 
-const SandBox = function () {
-    const DELIM = '__';
+const SandBox = function() {
+  const DELIM = '__';
 
-    return {
-        /**
-         * Factory method to create a new sandbox instance
-         * 
-         * @param $gui {object} - GUI instance
-         * @param instance {string} - Unique instance identifier
-         * @param options {object} - Configuration options
-         * @param module {string} - Module name
-         * @return {object} - Configured sandbox instance
-         */
-        create: ($gui, instance, options = {}, module) => {
-            const sandbox = {
-                id: instance,
-                module: module,
-                options: options,
-                utils
-            };
-            console.log('gui in sandbox = ', $gui);
-            // Attach Broker methods to sandbox API
-            $gui.broker.install(sandbox);
-            sandbox.broker = $gui.broker;
-
-            sandbox.add = $gui.broker.add.bind($gui.broker);
-            sandbox.remove = $gui.broker.remove.bind($gui.broker);
-            sandbox.emit = $gui.broker.emit.bind($gui.broker);
-            sandbox.fire = $gui.broker.fire.bind($gui.broker);
-
-            // jQuery utilities
-            sandbox.data = $.data;
-            sandbox.deferred = () => $.Deferred();
-            sandbox.animation = $.Animation;
-
-            /**
-             * Promise-based fetch wrapper for jQuery.ajax
-             */
-
-            // jQuery fetch wrapper
-            sandbox.fetch = (url, settings = {}) => {
-                return new Promise((resolve, reject) => {
-                    $.ajax({
-                        url: typeof url === 'string' ? url : url.url,
-                        ...settings,
-                        success: (data, textStatus, jqXHR) => resolve({ data, textStatus, jqXHR }),
-                        error: (jqXHR, textStatus) => reject(new Error(textStatus || 'Ajax failed'))
-                    });
-                });
-            };
-
-            /**
-             * Enhanced DOM query with native and jQuery helper methods
-             */
-            sandbox.query = (selector, context) => {
-                const $el = context && context.find ? context.find(selector) : $(selector);
-
-                $el.query = (sel) => sandbox.query(sel, $el);
-                $el.create = (el) => document.createElement(el);
-                $el.size = () => parseFloat(window.getComputedStyle($el[0] || $el).fontSize);
-
-                $el.animateAsync = (properties, duration, easing) => {
-                    return new Promise((resolve, reject) => {
-                        try {
-                            $el.animate(properties, {
-                                duration: duration,
-                                easing: easing,
-                                complete: () => resolve($el),
-                                fail: (error) => reject(error)
-                            });
-                        } catch (error) {
-                            reject(error);
-                        }
-                    });
-                };
-
-                $el.onAsync = (event, selector) => {
-                    return new Promise((resolve) => {
-                        const handler = (e) => {
-                            $el.off(event, selector, handler);
-                            resolve(e);
-                        };
-                        if (selector) {
-                            $el.on(event, selector, handler);
-                        } else {
-                            $el.on(event, handler);
-                        }
-                    });
-                };
-
-                return $el;
-            };
-
-            // Shorthand for query
-            sandbox.$ = sandbox.query;
-
-            /**
-             * Promise-based timeout
-             */
-            sandbox.timeout = (ms, fn) => new Promise((resolve) => {
-                setTimeout(() => resolve(fn && typeof fn === 'function' ? fn() : undefined), ms);
-            });
-
-            /**
-             * Promise-based interval with cancellation support
-             */
-            sandbox.interval = (fn, ms, maxRuns) => {
-                let intervalId;
-                let runCount = 0;
-                let stopped = false;
-
-                const promise = new Promise((resolve, reject) => {
-                    intervalId = setInterval(() => {
-                        if (stopped) {
-                            clearInterval(intervalId);
-                            resolve(runCount);
-                            return;
-                        }
-
-                        try {
-                            fn();
-                            runCount++;
-
-                            if (maxRuns && runCount >= maxRuns) {
-                                clearInterval(intervalId);
-                                resolve(runCount);
-                            }
-                        } catch (error) {
-                            clearInterval(intervalId);
-                            reject(error);
-                        }
-                    }, ms);
-                });
-
-                return {
-                    stop: () => {
-                        stopped = true;
-                        if (intervalId) {
-                            clearInterval(intervalId);
-                        }
-                    },
-                    promise: promise
-                };
-            };
-
-            /**
-             * Function context binding with partial application
-             */
-            sandbox.hitch = (fn, ...initialArgs) => {
-                return function (...args) {
-                    const allArgs = initialArgs.concat(args);
-                    return fn.apply(this, allArgs);
-                };
-            };
-
-            /**
-             * Memoization with Promise support
-             */
-            sandbox.memoize = (source, cache, refetch) => {
-                cache = cache || {};
-
-                return (...args) => {
-                    const key = args.length > 1 ? args.join(DELIM) : String(args[0] || '');
-
-                    if (!(key in cache) || (refetch && cache[key] === refetch)) {
-                        const result = source.apply(source, args);
-
-                        if (result && typeof result.then === 'function') {
-                            cache[key] = result.catch(error => {
-                                delete cache[key];
-                                throw error;
-                            });
-                        } else {
-                            cache[key] = result;
-                        }
-                    }
-
-                    return cache[key];
-                };
-            };
-
-            /**
-             * Load multiple resources (CSS, JS, JSON)
-             */
-            sandbox.loadResources = (resources, options = {}) => {
-                const resourceArray = Array.isArray(resources) ? resources : [resources];
-
-                const loadPromises = resourceArray.map(resource => {
-                    if (typeof resource === 'string') {
-                        const url = resource;
-                        const extension = url.split('.').pop().toLowerCase();
-
-                        switch (extension) {
-                            case 'css':
-                                return sandbox.loadCSS(url);
-                            case 'js':
-                                return sandbox.loadScript(url);
-                            case 'json':
-                                return sandbox.fetch(url).then(response => response.data);
-                            default:
-                                return sandbox.fetch(url);
-                        }
-                    } else if (resource && resource.type && resource.url) {
-                        switch (resource.type) {
-                            case 'css':
-                                return sandbox.loadCSS(resource.url);
-                            case 'script':
-                                return sandbox.loadScript(resource.url);
-                            case 'json':
-                                return sandbox.fetch(resource.url).then(response => response.data);
-                            default:
-                                return sandbox.fetch(resource.url);
-                        }
-                    }
-
-                    return Promise.reject(new Error('Invalid resource format'));
-                });
-
-                return Promise.all(loadPromises);
-            };
-
-            /**
-             * Load CSS file dynamically
-             */
-            sandbox.loadCSS = (url) => {
-                return new Promise((resolve, reject) => {
-                    const link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.type = 'text/css';
-                    link.href = url;
-
-                    link.onload = () => resolve(link);
-                    link.onerror = () => reject(new Error(`Failed to load CSS: ${url}`));
-
-                    document.head.appendChild(link);
-                });
-            };
-
-            /**
-             * Load JavaScript file dynamically
-             */
-            sandbox.loadScript = (url) => {
-                return new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.type = 'text/javascript';
-                    script.src = url;
-
-                    script.onload = () => resolve(script);
-                    script.onerror = () => reject(new Error(`Failed to load script: ${url}`));
-
-                    document.head.appendChild(script);
-                });
-            };
-
-            sandbox.getLocation = () => $gui.config.win && win.location;
-            sandbox.log = (...args) => $gui.debug.log(...args);
-            sandbox.warn = (...args) => $gui.debug.warn(...args);
-
-            // Document/Window ready promises
-            sandbox.ready = () => new Promise((resolve) => $(document).ready(resolve));
-            sandbox.loaded = () => new Promise((resolve) => $(window).on('load', resolve));
-
-            return sandbox;
-        }
+  this.create = function($gui, instance, options = {}, module) {
+    const sandbox = {
+      id: instance,
+      module: module,
+      options: options,
+      utils
     };
+    console.log('gui in sandbox = ', $gui);
+
+    // Attach Broker methods to sandbox API
+    $gui.broker.install(sandbox);
+    sandbox.broker = $gui.broker;
+
+    sandbox.add = $gui.broker.add.bind($gui.broker);
+    sandbox.remove = $gui.broker.remove.bind($gui.broker);
+    sandbox.emit = $gui.broker.emit.bind($gui.broker);
+    sandbox.fire = $gui.broker.fire.bind($gui.broker);
+
+    // jQuery utilities
+    sandbox.data = $.data;
+    sandbox.deferred = () => $.Deferred();
+    sandbox.animation = $.Animation;
+
+    /**
+     * Promise-based fetch wrapper for jQuery.ajax
+     */
+    sandbox.fetch = (url, settings = {}) => {
+      return new Promise((resolve, reject) => {
+        $.ajax({
+          url: typeof url === 'string' ? url : url.url,
+          ...settings,
+          success: (data, textStatus, jqXHR) => resolve({ data, textStatus, jqXHR }),
+          error: (jqXHR, textStatus) => reject(new Error(textStatus || 'Ajax failed'))
+        });
+      });
+    };
+
+    /**
+     * Enhanced DOM query with native and jQuery helper methods
+     */
+    sandbox.query = function(selector, context) {
+      const $el = context && context.find ? context.find(selector) : $(selector);
+
+      $el.query = (sel) => sandbox.query(sel, $el);
+      $el.create = (el) => document.createElement(el);
+      $el.size = () => parseFloat(window.getComputedStyle($el[0] || $el).fontSize);
+
+      $el.animateAsync = (properties, duration, easing) => {
+        return new Promise((resolve, reject) => {
+          $el.animate(properties, {
+            duration: duration,
+            easing: easing,
+            complete: () => resolve($el),
+            fail: (error) => reject(error)
+          });
+        }).catch(error => Promise.reject(error));
+      };
+
+      $el.onAsync = (event, selector) => {
+        return new Promise((resolve) => {
+          const handler = (e) => {
+            $el.off(event, selector, handler);
+            resolve(e);
+          };
+          if (selector) {
+            $el.on(event, selector, handler);
+          } else {
+            $el.on(event, handler);
+          }
+        });
+      };
+
+      return $el;
+    };
+
+    // Shorthand for query
+    sandbox.$ = sandbox.query;
+
+    /**
+     * Promise-based timeout
+     */
+    sandbox.timeout = (ms, fn) => new Promise((resolve) => {
+      setTimeout(() => resolve(fn && typeof fn === 'function' ? fn() : undefined), ms);
+    });
+
+    /**
+     * Promise-based interval with cancellation support
+     */
+    sandbox.interval = (fn, ms, maxRuns) => {
+      let intervalId;
+      let runCount = 0;
+      let stopped = false;
+
+      const promise = new Promise((resolve, reject) => {
+        intervalId = setInterval(() => {
+          if (stopped) {
+            clearInterval(intervalId);
+            resolve(runCount);
+            return;
+          }
+
+          Promise.resolve()
+            .then(() => fn())
+            .then(() => {
+              runCount++;
+
+              if (maxRuns && runCount >= maxRuns) {
+                clearInterval(intervalId);
+                resolve(runCount);
+              }
+            })
+            .catch(error => {
+              clearInterval(intervalId);
+              reject(error);
+            });
+        }, ms);
+      });
+
+      return {
+        stop: () => {
+          stopped = true;
+          if (intervalId) {
+            clearInterval(intervalId);
+          }
+        },
+        promise: promise
+      };
+    };
+
+    /**
+     * Function context binding with partial application
+     */
+    sandbox.hitch = function(fn, ...initialArgs) {
+      return function(...args) {
+        const allArgs = initialArgs.concat(args);
+        return fn.apply(this, allArgs);
+      };
+    };
+
+    /**
+     * Memoization with Promise support
+     */
+    sandbox.memoize = (source, cache, refetch) => {
+      cache = cache || {};
+
+      return (...args) => {
+        const key = args.length > 1 ? args.join(DELIM) : String(args[0] || '');
+
+        if (!(key in cache) || (refetch && cache[key] === refetch)) {
+          const result = source.apply(source, args);
+
+          if (result && typeof result.then === 'function') {
+            cache[key] = result.catch(error => {
+              delete cache[key];
+              return Promise.reject(error);
+            });
+          } else {
+            cache[key] = result;
+          }
+        }
+
+        return cache[key];
+      };
+    };
+
+    /**
+     * Load multiple resources (CSS, JS, JSON)
+     */
+    sandbox.loadResources = (resources, options = {}) => {
+      const resourceArray = Array.isArray(resources) ? resources : [resources];
+
+      const loadPromises = resourceArray.map(resource => {
+        if (typeof resource === 'string') {
+          const url = resource;
+          const extension = url.split('.').pop().toLowerCase();
+
+          switch (extension) {
+            case 'css':
+              return sandbox.loadCSS(url);
+            case 'js':
+              return sandbox.loadScript(url);
+            case 'json':
+              return sandbox.fetch(url).then(response => response.data);
+            default:
+              return sandbox.fetch(url);
+          }
+        } else if (resource && resource.type && resource.url) {
+          switch (resource.type) {
+            case 'css':
+              return sandbox.loadCSS(resource.url);
+            case 'script':
+              return sandbox.loadScript(resource.url);
+            case 'json':
+              return sandbox.fetch(resource.url).then(response => response.data);
+            default:
+              return sandbox.fetch(resource.url);
+          }
+        }
+
+        return Promise.reject(new Error('Invalid resource format'));
+      });
+
+      return Promise.all(loadPromises);
+    };
+
+    /**
+     * Load CSS file dynamically
+     */
+    sandbox.loadCSS = (url) => {
+      return new Promise((resolve, reject) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = url;
+
+        link.onload = () => resolve(link);
+        link.onerror = () => reject(new Error(`Failed to load CSS: ${url}`));
+
+        document.head.appendChild(link);
+      });
+    };
+
+    /**
+     * Load JavaScript file dynamically
+     */
+    sandbox.loadScript = (url) => {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = url;
+
+        script.onload = () => resolve(script);
+        script.onerror = () => reject(new Error(`Failed to load script: ${url}`));
+
+        document.head.appendChild(script);
+      });
+    };
+
+    sandbox.getLocation = () => $gui.config.win && $gui.config.win.location;
+    sandbox.log = (...args) => $gui.debug.log(...args);
+    sandbox.warn = (...args) => $gui.debug.warn(...args);
+
+    // Document/Window ready promises
+    sandbox.ready = () => new Promise((resolve) => $(document).ready(resolve));
+    sandbox.loaded = () => new Promise((resolve) => $(window).on('load', resolve));
+
+    return sandbox;
+  };
+
+  return this;
 };
 
 // gui.js - Main entry point with functional design
 
-const GUI = function () {
+const GUI = function() {
   const gui = this;
-  
+
   this.config = { logLevel: 0, name: 'FEAR_GUI', version: '2.0.0' };
-  
+
   this.debug = {
     history: [],
     level: this.config.logLevel,
@@ -1174,11 +1163,10 @@ const GUI = function () {
     const module = gui.state.modules[moduleId];
     const iOpts = { ...module.options, ...opts.options };
 
-    const sb = SandBox().create(gui, id, iOpts, moduleId);
+    const sb = new SandBox().create(gui, id, iOpts, moduleId);
 
     return _runInstPlugins('load', sb)
       .then(() => {
-
         const instance = module.creator(sb);
 
         if (typeof instance.load !== 'function') {
@@ -1207,7 +1195,7 @@ const GUI = function () {
   };
 
   // Public API
-  this.configure = (options) => {
+  this.configure = function(options) {
     if (options && utils.isObj(options)) {
       gui.config = utils.merge(gui.config, options);
       gui.registry.setGlobal(gui.config);
@@ -1217,7 +1205,7 @@ const GUI = function () {
     return gui;
   };
 
-  this.create = (id, creator, options = {}) => {
+  this.create = function(id, creator, options = {}) {
     const error = utils.isType('string', id, 'module ID') ||
       utils.isType('function', creator, 'creator') ||
       utils.isType('object', options, 'option parameter');
@@ -1231,7 +1219,7 @@ const GUI = function () {
     return gui;
   };
 
-  this.start = (moduleId, opt = {}) => {
+  this.start = function(moduleId, opt = {}) {
     const id = opt.instanceId || moduleId;
     const error = utils.isType('string', moduleId, 'module ID') ||
       utils.isType('object', opt, 'second parameter') ||
@@ -1274,7 +1262,7 @@ const GUI = function () {
       });
   };
 
-  this.stop = (id) => {
+  this.stop = function(id) {
     if (arguments.length === 0 || typeof id === 'function') {
       const moduleIds = Object.keys(gui.state.instances);
       return utils.run.parallel(moduleIds.map(mid => () => gui.stop(mid)));
@@ -1287,7 +1275,7 @@ const GUI = function () {
     gui.broker.remove(instance);
     gui.registry.unregister(id);
 
-    return gui._runInstPlugins('unload', gui.state.sandboxes[id])
+    return _runInstPlugins('unload', gui.state.sandboxes[id])
       .then(() => {
         if (instance.unload && typeof instance.unload === 'function') {
           const unloadResult = instance.unload();
@@ -1297,10 +1285,12 @@ const GUI = function () {
         }
         return Promise.resolve();
       })
-      .then(() => { delete gui.state.running[id]; });
+      .then(() => {
+        delete gui.state.running[id];
+      });
   };
 
-  this.use = (plugin, opt) => {
+  this.use = function(plugin, opt) {
     if (utils.isArr(plugin)) {
       plugin.forEach(p => {
         if (utils.isFunc(p)) {
@@ -1323,9 +1313,9 @@ const GUI = function () {
     return gui;
   };
 
-  this.plugin = (plugin, module) => {
+  this.plugin = function(plugin, module) {
     if (plugin.fn && utils.isFunc(plugin.fn)) {
-      $$1.fn[module.toLowerCase()] = function (options) {
+      $$1.fn[module.toLowerCase()] = function(options) {
         return new plugin.fn(this, options);
       };
     } else {
@@ -1335,28 +1325,28 @@ const GUI = function () {
     return gui;
   };
 
-  this.boot = () => {
+  this.boot = function() {
     const tasks = gui.state.plugins
       .filter(plugin => plugin.booted !== true)
       .map(plugin => () => {
         return new Promise((resolve, reject) => {
-          try {
-            if (utils.hasArgs(plugin.creator, 3)) {
-              plugin.creator(gui, plugin.options, (err) => {
-                if (err) {
-                  reject(err);
-                } else {
-                  plugin.booted = true;
-                  resolve();
-                }
-              });
-            } else {
-              plugin.plugin = plugin.creator(gui, plugin.options);
-              plugin.booted = true;
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
+          if (utils.hasArgs(plugin.creator, 3)) {
+            plugin.creator(gui, plugin.options, (err) => {
+              if (err) {
+                reject(err);
+              } else {
+                plugin.booted = true;
+                resolve();
+              }
+            });
+          } else {
+            Promise.resolve()
+              .then(() => {
+                plugin.plugin = plugin.creator(gui, plugin.options);
+                plugin.booted = true;
+                resolve();
+              })
+              .catch(err => reject(err));
           }
         });
       });
@@ -1364,9 +1354,12 @@ const GUI = function () {
     return utils.run.series(tasks);
   };
 
-  this.attach = async (imports) => {
-    gui.debug.log('Dynamic async module loading.');
-    gui.debug.log('Imports:', imports);
+  this.attach = function(imports) {
+    return Promise.resolve()
+      .then(() => {
+        gui.debug.log('Dynamic async module loading.');
+        gui.debug.log('Imports:', imports);
+      });
   };
 
   return this;
