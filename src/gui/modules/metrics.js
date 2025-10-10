@@ -1,14 +1,15 @@
-import { createGUI } from "../core/gui";
-const FEAR = createGUI();
+import FEAR from "../core/gui";
 /**
  * Performance Metrics Module
  * Monitors route loading times, cache performance, and module lifecycle events
  */
-export const Metrics = FEAR.create('Metrics', ($GUI) => {
+export const Metrics = FEAR.create('Metrics', function(fear, options) {
+  const metrics = this;
+  
   // Private state
-  let monitor = null;
-  let metricsInterval = null;
-  let $metricsDisplay = null;
+  this.monitor = null;
+  this.metricsInterval = null;
+  this.$metricsDisplay = null;
 
   // Performance Monitor Factory Function
   const createPerformanceMonitor = (enabled = true) => {
@@ -27,158 +28,154 @@ export const Metrics = FEAR.create('Metrics', ($GUI) => {
       timings: new Map()
     };
 
-    const startTiming = (key) => {
-      if (!state.enabled) return null;
-      const startTime = performance.now();
-      state.timings.set(key, startTime);
-      return startTime;
-    };
-
-    const endTiming = (key) => {
-      if (!state.enabled || !state.timings.has(key)) return 0;
-      
-      const startTime = state.timings.get(key);
-      const duration = performance.now() - startTime;
-      
-      // Store the timing based on key type
-      if (key.startsWith('route:')) {
-        state.metrics.routeLoadTimes.set(key, duration);
-        state.metrics.totalRoutes++;
-      } else if (key.startsWith('module:')) {
-        state.metrics.moduleLoadTimes.set(key, duration);
-        state.metrics.totalModules++;
-      }
-      
-      state.timings.delete(key);
-      return duration;
-    };
-
-    const recordCacheHit = () => {
-      if (state.enabled) {
-        state.metrics.cacheHits++;
-      }
-    };
-
-    const recordCacheMiss = () => {
-      if (state.enabled) {
-        state.metrics.cacheMisses++;
-      }
-    };
-
-    const recordError = (error) => {
-      if (state.enabled) {
-        state.metrics.errors++;
-        $GUI.log('Error recorded:', error);
-      }
-    };
-
-    const getCacheHitRate = () => {
-      const total = state.metrics.cacheHits + state.metrics.cacheMisses;
-      return total > 0 ? (state.metrics.cacheHits / total * 100).toFixed(2) : 0;
-    };
-
-    const getAverageLoadTime = (type) => {
-      const times = type === 'route' 
-        ? state.metrics.routeLoadTimes 
-        : state.metrics.moduleLoadTimes;
-      
-      if (times.size === 0) return 0;
-      
-      const sum = Array.from(times.values()).reduce((a, b) => a + b, 0);
-      return (sum / times.size).toFixed(2);
-    };
-
-    const getMetrics = () => {
-      return {
-        ...state.metrics,
-        routeLoadTimes: Array.from(state.metrics.routeLoadTimes.entries()),
-        moduleLoadTimes: Array.from(state.metrics.moduleLoadTimes.entries()),
-        uptime: Date.now() - state.metrics.startTime,
-        cacheHitRate: getCacheHitRate(),
-        averageRouteLoadTime: getAverageLoadTime('route'),
-        averageModuleLoadTime: getAverageLoadTime('module')
-      };
-    };
-
-    const reset = () => {
-      state.metrics = {
-        routeLoadTimes: new Map(),
-        moduleLoadTimes: new Map(),
-        totalRoutes: 0,
-        totalModules: 0,
-        cacheHits: 0,
-        cacheMisses: 0,
-        errors: 0,
-        startTime: Date.now()
-      };
-      state.timings.clear();
-    };
-
     return {
-      startTiming,
-      endTiming,
-      recordCacheHit,
-      recordCacheMiss,
-      recordError,
-      getMetrics,
-      getCacheHitRate,
-      getAverageLoadTime,
-      reset
+      startTiming: (key) => {
+        if (!state.enabled) return null;
+        const startTime = performance.now();
+        state.timings.set(key, startTime);
+        return startTime;
+      },
+
+      endTiming: (key) => {
+        if (!state.enabled || !state.timings.has(key)) return 0;
+        
+        const startTime = state.timings.get(key);
+        const duration = performance.now() - startTime;
+        
+        // Store the timing based on key type
+        if (key.startsWith('route:')) {
+          state.metrics.routeLoadTimes.set(key, duration);
+          state.metrics.totalRoutes++;
+        } else if (key.startsWith('module:')) {
+          state.metrics.moduleLoadTimes.set(key, duration);
+          state.metrics.totalModules++;
+        }
+        
+        state.timings.delete(key);
+        return duration;
+      },
+
+      recordCacheHit: () => {
+        if (state.enabled) {
+          state.metrics.cacheHits++;
+        }
+      },
+
+      recordCacheMiss: () => {
+        if (state.enabled) {
+          state.metrics.cacheMisses++;
+        }
+      },
+
+      recordError: (error) => {
+        if (state.enabled) {
+          state.metrics.errors++;
+          gui.log('Error recorded:', error);
+        }
+      },
+
+      getCacheHitRate: () => {
+        const total = state.metrics.cacheHits + state.metrics.cacheMisses;
+        return total > 0 ? (state.metrics.cacheHits / total * 100).toFixed(2) : 0;
+      },
+
+      getAverageLoadTime: (type) => {
+        const times = type === 'route' 
+          ? state.metrics.routeLoadTimes 
+          : state.metrics.moduleLoadTimes;
+        
+        if (times.size === 0) return 0;
+        
+        const sum = Array.from(times.values()).reduce((a, b) => a + b, 0);
+        return (sum / times.size).toFixed(2);
+      },
+
+      getMetrics: () => {
+        return {
+          ...state.metrics,
+          routeLoadTimes: Array.from(state.metrics.routeLoadTimes.entries()),
+          moduleLoadTimes: Array.from(state.metrics.moduleLoadTimes.entries()),
+          uptime: Date.now() - state.metrics.startTime,
+          cacheHitRate: state.metrics.cacheHits + state.metrics.cacheMisses > 0 
+            ? (state.metrics.cacheHits / (state.metrics.cacheHits + state.metrics.cacheMisses) * 100).toFixed(2) 
+            : 0,
+          averageRouteLoadTime: state.metrics.routeLoadTimes.size === 0 
+            ? 0 
+            : (Array.from(state.metrics.routeLoadTimes.values()).reduce((a, b) => a + b, 0) / state.metrics.routeLoadTimes.size).toFixed(2),
+          averageModuleLoadTime: state.metrics.moduleLoadTimes.size === 0 
+            ? 0 
+            : (Array.from(state.metrics.moduleLoadTimes.values()).reduce((a, b) => a + b, 0) / state.metrics.moduleLoadTimes.size).toFixed(2)
+        };
+      },
+
+      reset: () => {
+        state.metrics = {
+          routeLoadTimes: new Map(),
+          moduleLoadTimes: new Map(),
+          totalRoutes: 0,
+          totalModules: 0,
+          cacheHits: 0,
+          cacheMisses: 0,
+          errors: 0,
+          startTime: Date.now()
+        };
+        state.timings.clear();
+      }
     };
   };
 
-  // Private helper functions
-  const updateMetricsDisplay = () => {
-    if (!$metricsDisplay || !monitor) return;
+  // Private helper methods
+  this._updateMetricsDisplay = () => {
+    if (!this.$metricsDisplay || !this.monitor) return;
 
-    const metrics = monitor.getMetrics();
+    const metricsData = this.monitor.getMetrics();
     
     const html = `
       <div class="metrics-panel">
         <h3>Performance Metrics</h3>
         <div class="metric-item">
           <span class="label">Uptime:</span>
-          <span class="value">${formatUptime(metrics.uptime)}</span>
+          <span class="value">${this._formatUptime(metricsData.uptime)}</span>
         </div>
         <div class="metric-item">
           <span class="label">Total Routes:</span>
-          <span class="value">${metrics.totalRoutes}</span>
+          <span class="value">${metricsData.totalRoutes}</span>
         </div>
         <div class="metric-item">
           <span class="label">Total Modules:</span>
-          <span class="value">${metrics.totalModules}</span>
+          <span class="value">${metricsData.totalModules}</span>
         </div>
         <div class="metric-item">
           <span class="label">Avg Route Load:</span>
-          <span class="value">${metrics.averageRouteLoadTime}ms</span>
+          <span class="value">${metricsData.averageRouteLoadTime}ms</span>
         </div>
         <div class="metric-item">
           <span class="label">Avg Module Load:</span>
-          <span class="value">${metrics.averageModuleLoadTime}ms</span>
+          <span class="value">${metricsData.averageModuleLoadTime}ms</span>
         </div>
         <div class="metric-item">
           <span class="label">Cache Hit Rate:</span>
-          <span class="value">${metrics.cacheHitRate}%</span>
+          <span class="value">${metricsData.cacheHitRate}%</span>
         </div>
         <div class="metric-item">
           <span class="label">Cache Hits:</span>
-          <span class="value">${metrics.cacheHits}</span>
+          <span class="value">${metricsData.cacheHits}</span>
         </div>
         <div class="metric-item">
           <span class="label">Cache Misses:</span>
-          <span class="value">${metrics.cacheMisses}</span>
+          <span class="value">${metricsData.cacheMisses}</span>
         </div>
         <div class="metric-item">
           <span class="label">Errors:</span>
-          <span class="value">${metrics.errors}</span>
+          <span class="value">${metricsData.errors}</span>
         </div>
       </div>
     `;
     
-    $metricsDisplay.html(html);
+    this.$metricsDisplay.html(html);
   };
 
-  const formatUptime = (ms) => {
+  this._formatUptime = (ms) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
@@ -197,139 +194,150 @@ export const Metrics = FEAR.create('Metrics', ($GUI) => {
     /**
      * Initialize the metrics module
      */
-    load: (options = {}) => {
-      $GUI.log('Metrics module loading with options:', options);
+    load: function(gui, options = {}) {
+      return Promise.resolve()
+        .then(() => {
+          gui.log('Metrics module loading with options:', options);
 
-      // Create performance monitor
-      monitor = createPerformanceMonitor(options.enabled !== false);
+          // Create performance monitor
+          metrics.monitor = createPerformanceMonitor(options.enabled !== false);
 
-      // Set up event listeners for performance tracking
-      $GUI.add('route:start', (data) => {
-        const routeKey = `route:${data.path || 'unknown'}`;
-        monitor.startTiming(routeKey);
-        $GUI.log('Route started:', routeKey);
-      });
+          // Set up event listeners for performance tracking
+          gui.add('route:start', (data) => {
+            const routeKey = `route:${data.path || 'unknown'}`;
+            metrics.monitor.startTiming(routeKey);
+            gui.log('Route started:', routeKey);
+          });
 
-      $GUI.add('route:complete', (data) => {
-        const routeKey = `route:${data.path || 'unknown'}`;
-        const duration = monitor.endTiming(routeKey);
-        $GUI.log(`Route completed: ${routeKey} in ${duration}ms`);
-        
-        // Emit metrics update
-        $GUI.emit('metrics:updated', monitor.getMetrics());
-      });
+          gui.add('route:complete', (data) => {
+            const routeKey = `route:${data.path || 'unknown'}`;
+            const duration = metrics.monitor.endTiming(routeKey);
+            gui.log(`Route completed: ${routeKey} in ${duration}ms`);
+            
+            // Emit metrics update
+            return gui.emit('metrics:updated', metrics.monitor.getMetrics());
+          });
 
-      $GUI.add('module:start', (data) => {
-        const moduleKey = `module:${data.name || 'unknown'}`;
-        monitor.startTiming(moduleKey);
-        $GUI.log('Module started:', moduleKey);
-      });
+          gui.add('module:start', (data) => {
+            const moduleKey = `module:${data.name || 'unknown'}`;
+            metrics.monitor.startTiming(moduleKey);
+            gui.log('Module started:', moduleKey);
+          });
 
-      $GUI.add('module:complete', (data) => {
-        const moduleKey = `module:${data.name || 'unknown'}`;
-        const duration = monitor.endTiming(moduleKey);
-        $GUI.log(`Module loaded: ${moduleKey} in ${duration}ms`);
-        
-        // Emit metrics update
-        $GUI.emit('metrics:updated', monitor.getMetrics());
-      });
+          gui.add('module:complete', (data) => {
+            const moduleKey = `module:${data.name || 'unknown'}`;
+            const duration = metrics.monitor.endTiming(moduleKey);
+            gui.log(`Module loaded: ${moduleKey} in ${duration}ms`);
+            
+            // Emit metrics update
+            return gui.emit('metrics:updated', metrics.monitor.getMetrics());
+          });
 
-      $GUI.add('cache:hit', () => {
-        monitor.recordCacheHit();
-      });
+          gui.add('cache:hit', () => {
+            metrics.monitor.recordCacheHit();
+          });
 
-      $GUI.add('cache:miss', () => {
-        monitor.recordCacheMiss();
-      });
+          gui.add('cache:miss', () => {
+            metrics.monitor.recordCacheMiss();
+          });
 
-      $GUI.add('error', (error) => {
-        monitor.recordError(error);
-      });
+          gui.add('error', (error) => {
+            metrics.monitor.recordError(error);
+          });
 
-      // Optional UI display
-      if (options.displayMetrics) {
-        $metricsDisplay = $GUI.$('#metrics-display');
-        
-        if ($metricsDisplay.length === 0) {
-          // Create metrics display if it doesn't exist
-          $metricsDisplay = $GUI.$('<div id="metrics-display"></div>');
-          $GUI.$('body').append($metricsDisplay);
-        }
+          // Optional UI display
+          if (options.displayMetrics) {
+            metrics.$metricsDisplay = gui.$('#metrics-display');
+            
+            if (metrics.$metricsDisplay.length === 0) {
+              // Create metrics display if it doesn't exist
+              metrics.$metricsDisplay = gui.$('<div id="metrics-display"></div>');
+              gui.$('body').append(metrics.$metricsDisplay);
+            }
 
-        // Update display periodically
-        const updateInterval = options.updateInterval || 5000;
-        metricsInterval = setInterval(() => {
-          updateMetricsDisplay();
-        }, updateInterval);
-      }
+            // Update display periodically
+            const updateInterval = options.updateInterval || 5000;
+            metrics.metricsInterval = setInterval(() => {
+              metrics._updateMetricsDisplay();
+            }, updateInterval);
+          }
 
-      // Expose public API on $GUI
-      $GUI.metrics = {
-        start: (key) => monitor.startTiming(key),
-        end: (key) => monitor.endTiming(key),
-        cacheHit: () => monitor.recordCacheHit(),
-        cacheMiss: () => monitor.recordCacheMiss(),
-        recordError: (error) => monitor.recordError(error),
-        get: () => monitor.getMetrics(),
-        reset: () => monitor.reset()
-      };
+          // Expose public API on gui
+          gui.metrics = {
+            start: (key) => metrics.monitor.startTiming(key),
+            end: (key) => metrics.monitor.endTiming(key),
+            cacheHit: () => metrics.monitor.recordCacheHit(),
+            cacheMiss: () => metrics.monitor.recordCacheMiss(),
+            recordError: (error) => metrics.monitor.recordError(error),
+            get: () => metrics.monitor.getMetrics(),
+            reset: () => metrics.monitor.reset()
+          };
 
-      $GUI.log('Metrics module loaded successfully');
-      return Promise.resolve();
+          gui.log('Metrics module loaded successfully');
+        });
     },
 
     /**
      * Unload the metrics module
      */
-    unload: () => {
-      $GUI.log('Metrics module unloading');
+    unload: function() {
+      return Promise.resolve()
+        .then(() => {
+          gui.log('Metrics module unloading');
 
-      // Clear interval
-      if (metricsInterval) {
-        clearInterval(metricsInterval);
-        metricsInterval = null;
-      }
+          // Clear interval
+          if (metrics.metricsInterval) {
+            clearInterval(metrics.metricsInterval);
+            metrics.metricsInterval = null;
+          }
 
-      // Remove UI display
-      if ($metricsDisplay) {
-        $metricsDisplay.remove();
-        $metricsDisplay = null;
-      }
+          // Remove UI display
+          if (metrics.$metricsDisplay) {
+            metrics.$metricsDisplay.remove();
+            metrics.$metricsDisplay = null;
+          }
 
-      // Clean up $GUI API
-      delete $GUI.metrics;
-
-      return Promise.resolve();
+          // Clean up gui API
+          delete gui.metrics;
+        });
     },
 
     /**
      * Destroy the metrics module
      */
-    destroy: () => {
-      $GUI.log('Metrics module destroying');
-      
-      if (monitor) {
-        monitor.reset();
-        monitor = null;
-      }
+    destroy: function() {
+      return Promise.resolve()
+        .then(() => {
+          gui.log('Metrics module destroying');
+          
+          if (metrics.monitor) {
+            metrics.monitor.reset();
+            metrics.monitor = null;
+          }
+        });
     },
 
     /**
      * Get current metrics snapshot
      */
-    getSnapshot: () => {
-      return monitor ? monitor.getMetrics() : null;
+    getSnapshot: function() {
+      return metrics.monitor ? metrics.monitor.getMetrics() : null;
     },
 
     /**
      * Reset all metrics
      */
-    reset: () => {
-      if (monitor) {
-        monitor.reset();
-        $GUI.emit('metrics:reset');
-        $GUI.log('Metrics reset');
-      }
+    reset: function() {
+      return Promise.resolve()
+        .then(() => {
+          if (metrics.monitor) {
+            metrics.monitor.reset();
+            return gui.emit('metrics:reset');
+          }
+        })
+        .then(() => {
+          gui.log('Metrics reset');
+        });
     }
   };
 }, {

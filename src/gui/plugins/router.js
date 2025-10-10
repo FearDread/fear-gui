@@ -1,567 +1,577 @@
-import Utils from "../../gui/utils";
-import Cache from "../modules/cache";
-import Metrics from "../modules/metrics";
 
-export const Router = (() => {
-  // Private instance variable
-  let instance = null;
+/**
+ * Router Plugin
+ * Handles client-side routing with hash navigation, route loading, and transitions
+ */
+export const Router = function(options = {}) {
+  const router = this;
 
-  // Private constructor function
-  function Router(element, options) {
-    // Prevent multiple instantiation
-    if (instance) {
-      console.warn('[FearRouter] Instance already exists. Returning existing instance.');
-      return instance;
+  // Default configuration
+  const DEFAULTS = {
+    container: '#router-container',
+    fragmentPath: '/fragments/',
+    defaultRoute: 'home',
+    pushState: true,
+    hashNavigation: true,
+    smoothScroll: true,
+    scrollOffset: 0,
+    activeClass: 'active',
+    loading: {
+      enabled: true,
+      template: '<div class="router-loading">Loading...</div>',
+      minDisplay: 300
+    },
+    animations: {
+      enabled: true,
+      fadeSpeed: 300
+    },
+    cache: {
+      enabled: true,
+      maxSize: 50,
+      ttl: 3600000
+    },
+    performance: {
+      trackMetrics: true
+    },
+    accessibility: {
+      announceRoutes: true,
+      focusContent: true
+    },
+    retry: {
+      enabled: true,
+      maxAttempts: 3,
+      delay: 1000
+    },
+    callbacks: {
+      beforeRouteChange: null,
+      afterRouteChange: null,
+      onRouteChange: null,
+      onError: null,
+      onDestroy: null
+    },
+    routes: {}
+  };
+
+  // Merge options with defaults
+  this.options = FEAR.utils.merge({}, DEFAULTS, options);
+
+  // Private state
+  this.routes = this.options.routes;
+  this.currentRoute = null;
+  this.previousRoute = null;
+  this.isNavigating = false;
+  this.initialized = false;
+  this.loadingPromises = new Map();
+  this.retryAttempts = new Map();
+  this.$container = null;
+  this.$announcer = null;
+  this.cache = new Map();
+  this.cacheTimestamps = new Map();
+
+  // Private methods
+  this._handleHashChange = () => {
+    if (!this.isNavigating) {
+      const hash = window.location.hash.slice(1);
+      const routeName = hash || this.options.defaultRoute;
+      this._loadRoute(routeName);
+    }
+  };
+
+  this._handlePopState = (e) => {
+    const state = e.originalEvent?.state;
+    if (state && state.route) {
+      this._loadRoute(state.route);
+    } else {
+      this._handleHashChange();
+    }
+  };
+
+  this._handleLinkClick = (e) => {
+    const $link = $(e.currentTarget);
+    const href = $link.attr('href');
+
+    if (href && href.startsWith('#') && href.length > 1) {
+      e.preventDefault();
+      const target = href.slice(1);
+
+      if (router.options.smoothScroll) {
+        router._scrollToSection(target);
+      }
+
+      router.navigate(target, true);
+    }
+  };
+
+  this._loadRoute = function(routeName) {
+    if (this.isNavigating) {
+      console.warn('Navigation already in progress');
+      return Promise.resolve();
     }
 
-    this.element = element;
-    this.$element = $(element);
-    this.options = $.extend(true, {}, DEFAULTS, options);
+    const route = this.routes[routeName];
+    if (!route) {
+      console.warn(`Route "${routeName}" not found`);
+      return Promise.reject(new Error(`Route not found: ${routeName}`));
+    }
 
-    // Initialize components
-    this.cache = new Cache(this.options);
-    this.performance = new Metrics(this.options.performance.trackMetrics);
-    
-    this.loadingPromises = new Map();
-    this.retryAttempts = new Map();
+    this.isNavigating = true;
 
-    this.handler = {
-      hashChange: () => {
-        if (!this.isNavigating) {
-          this.handler.route();
+    return FEAR.broker.emit('route:start', { path: routeName })
+      .then(() => {
+        if (this.options.callbacks.beforeRouteChange) {
+          return Promise.resolve(
+            this.options.callbacks.beforeRouteChange.call(this, routeName, this.currentRoute)
+          );
         }
-      },
-      
-      popState: (e) => {
-        const state = e.originalEvent.state;
-        if (state && state.route) {
-          this.handler.route(state.route);
+      })
+      .then(shouldContinue => {
+        if (shouldContinue === false) {
+          this.isNavigating = false;
+          return Promise.reject(new Error('Route change cancelled'));
+        }
+
+        this.previousRoute = this.currentRoute;
+        this.currentRoute = routeName;
+
+        // Show loading if needed
+        if (this.options.loading.enabled && !route.html) {
+          this._showLoading();
+        }
+
+        // Load route content
+        if (route.html) {
+          return this._renderRoute(route);
         } else {
-          this.handler.route();
+          return this._fetchRoute(route);
         }
-      },
-      
-      route: async (routeName) => {
-        if (this.isNavigating) {
-          this.log('Navigation already in progress', 'warn');
-          return;
-        }
+      })
+      .then(() => {
+        console.log(`Route "${routeName}" loaded successfully`);
+        return FEAR.broker.emit('route:complete', { path: routeName });
+      })
+      .catch(error => {
+        this._handleError(`Failed to load route "${routeName}": ${error.message}`, error);
+        return Promise.reject(error);
+      })
+      .then(() => {
+        this.isNavigating = false;
+        this._hideLoading();
+      });
+  };
 
-        this.isNavigating = true;
-        const startTime = this.performance.startTiming(route.name);
+  this._fetchRoute = function(route) {
+    const cached = this._getCachedRoute(route.name);
+    if (cached) {
+      FEAR.broker.emit('cache:hit');
+      route.html = cached;
+      return this._renderRoute(route);
+    }
 
-        try {
-          // Execute beforeRouteChange callback
-          if (this.options.callbacks.beforeRouteChange) {
-            const shouldContinue = await this.options.callbacks.beforeRouteChange.call(
-              this, route.name, this.currentRoute
-            );
-            if (shouldContinue === false) {
-              this.isNavigating = false;
-              return;
-            }
-          }
+    FEAR.broker.emit('cache:miss');
 
-          this.previousRoute = this.currentRoute;
-          this.currentRoute = route.name;
-
-          // Show loading if needed
-          if (this.options.loading.enabled && !route.html) {
-            this.showLoading();
-          }
-
-          // Load route content
-          if (route.html) {
-            await this.handler.render(route);
-          } else {
-            await this.handler.fetch(route);
-          }
-
-          // Record performance metrics
-          const loadTime = this.performance.endTiming(route.name, startTime);
-          this.performance.metrics.totalRoutes++;
-
-          this.log(`Route "${route.name}" loaded in ${loadTime.toFixed(2)}ms`);
-          this.trigger('fear:router:loaded', { route: route.name, loadTime });
-
-        } catch (error) {
-          this.handleError(`Failed to load route "${route.name}": ${error.message}`, error);
-        } finally {
-          this.isNavigating = false;
-          this.hideLoading();
-        }
-      },
-      
-      load: async (route) => {
-        if (this.isNavigating) {
-          this.log('Navigation already in progress', 'warn');
-          return;
-        }
-
-        this.isNavigating = true;
-        const startTime = this.performance.startTiming(route.name);
-
-        try {
-          // Execute beforeRouteChange callback
-          if (this.options.callbacks.beforeRouteChange) {
-            const shouldContinue = await this.options.callbacks.beforeRouteChange.call(
-              this, route.name, this.currentRoute
-            );
-            if (shouldContinue === false) {
-              this.isNavigating = false;
-              return;
-            }
-          }
-
-          this.previousRoute = this.currentRoute;
-          this.currentRoute = route.name;
-
-          // Show loading if needed
-          if (this.options.loading.enabled && !route.html) {
-            this.showLoading();
-          }
-
-          // Load route content
-          if (route.html) {
-            await this.renderRoute(route);
-          } else {
-            await this.fetchRoute(route);
-          }
-
-          // Record performance metrics
-          const loadTime = this.performance.endTiming(route.name, startTime);
-          this.performance.metrics.totalRoutes++;
-
-          this.log(`Route "${route.name}" loaded in ${loadTime.toFixed(2)}ms`);
-          this.trigger('fear:router:loaded', { route: route.name, loadTime });
-
-        } catch (error) {
-          this.handleError(`Failed to load route "${route.name}": ${error.message}`, error);
-        } finally {
-          this.isNavigating = false;
-          this.hideLoading();
-        }
-      },
-      
-      fetch: async (route) => {
-        const cached = this.cache.get(route.name);
-        if (cached) {
-          this.performance.recordCacheHit();
-          route.html = cached;
-          await this.handler.render(route);
-          return;
-        }
-
-        this.performance.recordCacheMiss();
-
-        // Check if already loading
-        if (this.loadingPromises.has(route.name)) {
-          const html = await this.loadingPromises.get(route.name);
+    // Check if already loading
+    if (this.loadingPromises.has(route.name)) {
+      return this.loadingPromises.get(route.name)
+        .then(html => {
           route.html = html;
-          await this.handler.render(route);
-          return;
-        }
+          return this._renderRoute(route);
+        });
+    }
 
-        // Create loading promise
-        const url = this.options.fragmentPath + (route.path || route.name + '.html');
-        const loadingPromise = this.createLoadingPromise(url, route.name);
+    // Create loading promise
+    const url = this.options.fragmentPath + (route.path || route.name + '.html');
+    const loadingPromise = this._createLoadingPromise(url, route.name);
 
-        this.loadingPromises.set(route.name, loadingPromise);
+    this.loadingPromises.set(route.name, loadingPromise);
 
-        try {
-          const html = await loadingPromise;
-          route.html = html;
-          this.cache.set(route.name, html);
-          await this.renderRoute(route);
-        } finally {
-          this.loadingPromises.delete(route.name);
-        }
-      },
-      
-      render: async (route) => {
-        const fadeSpeed = this.options.animations.enabled && !Utils.prefersReducedMotion()
-          ? this.options.animations.fadeSpeed : 0;
+    return loadingPromise
+      .then(html => {
+        route.html = html;
+        this._setCachedRoute(route.name, html);
+        return this._renderRoute(route);
+      })
+      .then(() => {
+        this.loadingPromises.delete(route.name);
+      })
+      .catch(error => {
+        this.loadingPromises.delete(route.name);
+        return Promise.reject(error);
+      });
+  };
 
-        return new Promise((resolve) => {
-          this.$container.fadeOut(fadeSpeed, async () => {
+  this._renderRoute = function(route) {
+    const fadeSpeed = this.options.animations.enabled && !this._prefersReducedMotion()
+      ? this.options.animations.fadeSpeed
+      : 0;
+
+    return new Promise((resolve, reject) => {
+      this.$container.fadeOut(fadeSpeed, () => {
+        Promise.resolve()
+          .then(() => {
             // Update content
             this.$container.empty().html(route.html);
 
             // Update document metadata
-            this.updateMetadata(route);
+            this._updateMetadata(route);
 
-            // Fade in content
-            this.$container.fadeIn(fadeSpeed, async () => {
-              try {
-                // Execute route callback
-                if (route.callback && typeof route.callback === 'function') {
-                  await route.callback.call(this, route);
-                }
-
-                this.initComponents();
-                this.handleAccessibility(route);
-                
-                if (this.options.callbacks.afterRouteChange) {
-                  await this.options.callbacks.afterRouteChange.call(this, route.name, this.previousRoute);
-                }
-
-                if (this.options.callbacks.onRouteChange) {
-                  await this.options.callbacks.onRouteChange.call(this, route.name);
-                }
-
-                this.trigger('fear:router:rendered', { route: route.name });
-                resolve();
-
-              } catch (error) {
-                this.handleError(`Route callback error: ${error.message}`, error);
-                resolve();
-              }
+            return new Promise((res) => {
+              // Fade in content
+              this.$container.fadeIn(fadeSpeed, () => res());
             });
+          })
+          .then(() => {
+            // Execute route callback
+            if (route.callback && typeof route.callback === 'function') {
+              return Promise.resolve(route.callback.call(this, route));
+            }
+          })
+          .then(() => {
+            this._initComponents();
+            this._handleAccessibility(route);
+
+            if (this.options.callbacks.afterRouteChange) {
+              return Promise.resolve(
+                this.options.callbacks.afterRouteChange.call(this, route.name, this.previousRoute)
+              );
+            }
+          })
+          .then(() => {
+            if (this.options.callbacks.onRouteChange) {
+              return Promise.resolve(
+                this.options.callbacks.onRouteChange.call(this, route.name)
+              );
+            }
+          })
+          .then(() => {
+            return FEAR.broker.emit('router:rendered', { route: route.name });
+          })
+          .then(() => resolve())
+          .catch(error => {
+            this._handleError(`Route callback error: ${error.message}`, error);
+            resolve();
           });
-        });
-      }
-    };
+      });
+    });
+  };
 
-    // State management
-    this.currentRoute = null;
-    this.previousRoute = null;
-    this.isNavigating = false;
-    this.initialized = false;
-
-    // Bind context
-    this.log = Utils.log.bind(this.options);
-    this.handleHashChange = this.handler.hashChange.bind(this);
-    this.handlePopState = this.handler.popState.bind(this);
-    
-    // Initialize
-    this.init();
-
-    // Store instance reference
-    instance = this;
-  }
-
-  // Public singleton interface
-  return {
-    // Initialize or get existing instance
-    getInstance: function(element, options) {
-      if (!instance) {
-        new Router(element, options);
-      }
-      return instance;
-    },
-
-    // Check if instance exists
-    hasInstance: function() {
-      return instance !== null;
-    },
-
-    // Public API methods (proxy to instance)
-    navigate: function(routeName, pushState = true) {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
-
-      if (instance.isNavigating) {
-        instance.log('Navigation already in progress', 'warn');
-        return instance;
-      }
-
-      const route = instance.options.routes[routeName];
-      if (!route) {
-        instance.log(`Route "${routeName}" not found`, 'error');
-        return instance;
-      }
-
-      if (pushState && instance.options.pushState) {
-        const state = { route: routeName };
-        history.pushState(state, route.title || '', `#${routeName}`);
-      } else {
-        window.location.hash = routeName;
-      }
-
-      return instance;
-    },
-
-    addRoute: function(name, config) {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
-
-      instance.options.routes[name] = {
-        name,
-        path: name + '.html',
-        html: null,
-        callback: null,
-        title: name.charAt(0).toUpperCase() + name.slice(1),
-        ...config
-      };
-
-      instance.log(`Route "${name}" added`);
-      instance.trigger('fear:router:route-added', { name, config });
-      return instance;
-    },
-
-    removeRoute: function(name) {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
-
-      if (instance.options.routes[name]) {
-        delete instance.options.routes[name];
-        instance.cache.cache.delete(name);
-        instance.log(`Route "${name}" removed`);
-        instance.trigger('fear:router:route-removed', { name });
-      }
-      return instance;
-    },
-
-    reload: function() {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
-
-      if (instance.currentRoute) {
-        const route = instance.options.routes[instance.currentRoute];
-        if (route) {
-          // Clear cache for this route
-          instance.cache.cache.delete(instance.currentRoute);
-          route.html = null;
-          instance.loadRoute(route);
+  this._createLoadingPromise = function(url, routeName) {
+    return new Promise((resolve, reject) => {
+      $.ajax({
+        url: url,
+        dataType: 'html',
+        success: (data) => resolve(data),
+        error: (jqXHR, textStatus, errorThrown) => {
+          reject(new Error(textStatus || 'Failed to load route'));
         }
-      }
-      return instance;
-    },
+      });
+    }).catch(error => {
+      const attempts = this.retryAttempts.get(routeName) || 0;
 
-    clearCache: function() {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
+      if (this.options.retry.enabled && attempts < this.options.retry.maxAttempts) {
+        this.retryAttempts.set(routeName, attempts + 1);
+        console.log(`Retrying route load (${attempts + 1}/${this.options.retry.maxAttempts})`);
 
-      instance.cache.clear();
-      instance.log('Cache cleared');
-      return instance;
-    },
-
-    getMetrics: function() {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
+        return new Promise((resolve) => {
+          setTimeout(() => resolve(), this.options.retry.delay);
+        }).then(() => this._createLoadingPromise(url, routeName));
       }
 
-      return instance.performance.getMetrics();
-    },
+      this.retryAttempts.delete(routeName);
+      return Promise.reject(error);
+    });
+  };
 
-    getCurrentRoute: function() {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
+  this._getCachedRoute = function(routeName) {
+    if (!this.options.cache.enabled) return null;
 
-      return instance.currentRoute;
-    },
+    const timestamp = this.cacheTimestamps.get(routeName);
+    if (!timestamp) return null;
 
-    getPreviousRoute: function() {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
-
-      return instance.previousRoute;
-    },
-
-    isReady: function() {
-      if (!instance) {
-        return false;
-      }
-
-      return instance.initialized && !instance.isNavigating;
-    },
-
-    // Event system
-    trigger: function(eventName, data = {}) {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
-
-      instance.$element.trigger(eventName, [data, instance]);
-      return instance;
-    },
-
-    on: function(eventName, handler) {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
-
-      instance.$element.on(eventName, handler);
-      return instance;
-    },
-
-    off: function(eventName, handler) {
-      if (!instance) {
-        console.error('[FearRouter] Router not initialized. Call getInstance() first.');
-        return null;
-      }
-
-      instance.$element.off(eventName, handler);
-      return instance;
-    },
-
-    // Cleanup and reset
-    destroy: function() {
-      if (!instance) {
-        console.warn('[FearRouter] No instance to destroy.');
-        return null;
-      }
-
-      instance.log('Destroying router instance');
-
-      // Remove event listeners
-      $(window).off(`.${PLUGIN_NAME}`);
-      instance.$element.off(`.${PLUGIN_NAME}`);
-
-      // Clear caches and promises
-      instance.cache.clear();
-      instance.loadingPromises.clear();
-      instance.retryAttempts.clear();
-
-      // Remove accessibility elements
-      if (instance.$announcer) {
-        instance.$announcer.remove();
-      }
-
-      // Trigger destroy callback
-      if (instance.options.callbacks.onDestroy) {
-        instance.options.callbacks.onDestroy.call(instance);
-      }
-
-      instance.trigger('fear:router:destroy');
-
-      // Clean up
-      instance.$element.removeData(DATA_KEY);
-      instance.initialized = false;
-
-      // Reset singleton instance
-      instance = null;
-
+    const now = Date.now();
+    if (now - timestamp > this.options.cache.ttl) {
+      this.cache.delete(routeName);
+      this.cacheTimestamps.delete(routeName);
       return null;
-    },
+    }
 
-    // Get direct access to instance (use sparingly)
-    _getInstance: function() {
-      return instance;
+    return this.cache.get(routeName);
+  };
+
+  this._setCachedRoute = function(routeName, html) {
+    if (!this.options.cache.enabled) return;
+
+    // Implement LRU cache
+    if (this.cache.size >= this.options.cache.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+      this.cacheTimestamps.delete(firstKey);
+    }
+
+    this.cache.set(routeName, html);
+    this.cacheTimestamps.set(routeName, Date.now());
+  };
+
+  this._showLoading = function() {
+    if (this.$container && this.options.loading.template) {
+      this.$container.html(this.options.loading.template);
     }
   };
-})();
 
-/* 
-  // Simple Router System
-  const RouterModule = (() => {
-    let isInitialized = false;
-    let config = {};
-    let currentRoute = '';
+  this._hideLoading = function() {
+    // Loading is automatically hidden during render
+  };
 
-    const init = options => {
-      if (isInitialized) return;
-      
-      config = options;
-      isInitialized = true;
-      CoreUtils.log('Initializing Router System', 'log', 'Router');
+  this._updateMetadata = function(route) {
+    if (route.title) {
+      document.title = route.title;
+    }
 
-      bindEvents();
-      handleInitialRoute();
-    };
-
-    const bindEvents = () => {
-      if (config.hashNavigation) {
-        $(window).on('hashchange.fear-router', handleHashChange);
-      }
-
-      $('a[href^="#"]').on('click.fear-router', handleLinkClick);
-    };
-
-    const handleHashChange = () => {
-      const hash = window.location.hash.slice(1);
-      navigateTo(hash);
-    };
-
-    const handleLinkClick = e => {
-      const $link = $(e.currentTarget);
-      const href = $link.attr('href');
-      
-      if (href.startsWith('#') && href.length > 1) {
-        e.preventDefault();
-        const target = href.slice(1);
-        
-        if (config.smoothScroll) {
-          scrollToSection(target);
+    if (route.meta) {
+      Object.keys(route.meta).forEach(name => {
+        let $meta = $(`meta[name="${name}"]`);
+        if ($meta.length === 0) {
+          $meta = $('<meta>').attr('name', name);
+          $('head').append($meta);
         }
-        
-        navigateTo(target);
+        $meta.attr('content', route.meta[name]);
+      });
+    }
+  };
+
+  this._initComponents = function() {
+    // Re-initialize components in the new content
+    FEAR.broker.emit('components:init', { container: this.$container });
+  };
+
+  this._handleAccessibility = function(route) {
+    if (!this.options.accessibility.announceRoutes) return;
+
+    if (this.$announcer) {
+      this.$announcer.text(`Navigated to ${route.title || route.name}`);
+    }
+
+    if (this.options.accessibility.focusContent) {
+      this.$container.attr('tabindex', '-1').focus();
+    }
+  };
+
+  this._scrollToSection = function(target) {
+    const $target = $(`#${target}, [name="${target}"]`).first();
+
+    if ($target.length) {
+      const targetTop = $target.offset().top - this.options.scrollOffset;
+
+      $('html, body').animate({
+        scrollTop: targetTop
+      }, 800);
+    }
+  };
+
+  this._prefersReducedMotion = function() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  };
+
+  this._handleError = function(message, error) {
+    console.error(message, error);
+    FEAR.broker.emit('error', { message, error });
+
+    if (this.options.callbacks.onError) {
+      this.options.callbacks.onError.call(this, error);
+    }
+  };
+
+  this._updateActiveStates = function(routeName) {
+    $(`a[href="#${routeName}"]`)
+      .addClass(this.options.activeClass)
+      .parent()
+      .siblings()
+      .find('a')
+      .removeClass(this.options.activeClass);
+  };
+
+  // Public API
+  this.init = function() {
+    if (this.initialized) {
+      console.warn('Router already initialized');
+      return this;
+    }
+
+    this.$container = $(this.options.container);
+
+    if (this.$container.length === 0) {
+      console.error(`Container "${this.options.container}" not found`);
+      return this;
+    }
+
+    // Create accessibility announcer
+    if (this.options.accessibility.announceRoutes) {
+      this.$announcer = $('<div>')
+        .attr({
+          'role': 'status',
+          'aria-live': 'polite',
+          'aria-atomic': 'true'
+        })
+        .addClass('sr-only')
+        .appendTo('body');
+    }
+
+    // Bind event listeners
+    if (this.options.hashNavigation) {
+      $(window).on('hashchange.fear-router', this._handleHashChange);
+    }
+
+    if (this.options.pushState) {
+      $(window).on('popstate.fear-router', this._handlePopState);
+    }
+
+    $(document).on('click.fear-router', 'a[href^="#"]', this._handleLinkClick);
+
+    this.initialized = true;
+
+    // Handle initial route
+    const hash = window.location.hash.slice(1);
+    const initialRoute = hash || this.options.defaultRoute;
+    
+    if (initialRoute) {
+      this._loadRoute(initialRoute);
+    }
+
+    console.log('Router initialized');
+    FEAR.broker.emit('router:ready');
+
+    return this;
+  };
+
+  this.navigate = function(routeName, pushState = true) {
+    if (this.isNavigating) {
+      console.warn('Navigation already in progress');
+      return this;
+    }
+
+    const route = this.routes[routeName];
+    if (!route) {
+      console.error(`Route "${routeName}" not found`);
+      return this;
+    }
+
+    if (pushState && this.options.pushState) {
+      const state = { route: routeName };
+      history.pushState(state, route.title || '', `#${routeName}`);
+    } else {
+      window.location.hash = routeName;
+    }
+
+    this._updateActiveStates(routeName);
+
+    return this;
+  };
+
+  this.addRoute = function(name, config) {
+    this.routes[name] = {
+      name,
+      path: name + '.html',
+      html: null,
+      callback: null,
+      title: name.charAt(0).toUpperCase() + name.slice(1),
+      ...config
+    };
+
+    console.log(`Route "${name}" added`);
+    FEAR.broker.emit('router:route-added', { name, config });
+    return this;
+  };
+
+  this.removeRoute = function(name) {
+    if (this.routes[name]) {
+      delete this.routes[name];
+      this.cache.delete(name);
+      this.cacheTimestamps.delete(name);
+      console.log(`Route "${name}" removed`);
+      FEAR.broker.emit('router:route-removed', { name });
+    }
+    return this;
+  };
+
+  this.reload = function() {
+    if (this.currentRoute) {
+      const route = this.routes[this.currentRoute];
+      if (route) {
+        // Clear cache for this route
+        this.cache.delete(this.currentRoute);
+        this.cacheTimestamps.delete(this.currentRoute);
+        route.html = null;
+        this._loadRoute(this.currentRoute);
       }
-    };
+    }
+    return this;
+  };
 
-    const navigateTo = route => {
-      if (currentRoute === route) return;
+  this.clearCache = function() {
+    this.cache.clear();
+    this.cacheTimestamps.clear();
+    console.log('Cache cleared');
+    return this;
+  };
 
-      const previousRoute = currentRoute;
-      currentRoute = route;
+  this.getCurrentRoute = function() {
+    return this.currentRoute;
+  };
 
-      // Update active states
-      updateActiveStates(route);
+  this.getPreviousRoute = function() {
+    return this.previousRoute;
+  };
 
-      // Execute route handler
-      if (config.routes[route] && CoreUtils.isFunction(config.routes[route])) {
-        config.routes[route](route, previousRoute);
+  this.isReady = function() {
+    return this.initialized && !this.isNavigating;
+  };
+
+  this.destroy = function() {
+    console.log('Destroying router instance');
+
+    // Remove event listeners
+    $(window).off('.fear-router');
+    $(document).off('.fear-router');
+
+    // Clear caches and promises
+    this.cache.clear();
+    this.cacheTimestamps.clear();
+    this.loadingPromises.clear();
+    this.retryAttempts.clear();
+
+    // Remove accessibility elements
+    if (this.$announcer) {
+      this.$announcer.remove();
+    }
+
+    // Trigger destroy callback
+    if (this.options.callbacks.onDestroy) {
+      this.options.callbacks.onDestroy.call(this);
+    }
+
+    FEAR.broker.emit('router:destroy');
+
+    this.initialized = false;
+
+    return this;
+  };
+
+  // jQuery plugin interface
+  this.fn = function($element, options) {
+    return $element.each(function() {
+      const $this = $(this);
+      let instance = $this.data('fear-router');
+
+      if (!instance) {
+        instance = new Router({ ...options, container: this });
+        $this.data('fear-router', instance);
+        instance.init();
       }
 
-      EventSystem.emit('route:change', { route, previousRoute });
-      CoreUtils.log(`Route changed: ${previousRoute} -> ${route}`, 'log', 'Router');
-    };
+      return instance;
+    });
+  };
 
-    const updateActiveStates = route => {
-      $(`a[href="#${route}"]`).addClass(config.activeClass)
-        .siblings().removeClass(config.activeClass);
-    };
+  return this;
+};
 
-    const scrollToSection = target => {
-      const $target = $(`#${target}, [name="${target}"]`).first();
-      
-      if ($target.length) {
-        const targetTop = $target.offset().top - config.scrollOffset;
-        
-        $('html, body').animate({
-          scrollTop: targetTop
-        }, 800, 'easeInOutCubic');
-      }
-    };
-
-    const handleInitialRoute = () => {
-      const hash = window.location.hash.slice(1);
-      if (hash) {
-        navigateTo(hash);
-      }
-    };
-
-    const destroy = () => {
-      if (!isInitialized) return;
-      
-      $(window).off('.fear-router');
-      $('a[href^="#"]').off('.fear-router');
-      
-      isInitialized = false;
-      config = {};
-      currentRoute = '';
-    };
-
-    const getCurrentRoute = () => currentRoute;
-
-    return { init, destroy, navigateTo, getCurrentRoute };
-  })();
-  */
+export default Router;

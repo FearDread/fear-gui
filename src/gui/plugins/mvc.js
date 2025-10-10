@@ -1,6 +1,5 @@
 // mvc.js - Model-View-Controller framework
-import { utils } from './utils';
-
+import { utils } from '../core/utils';
 /**
  * Model factory - Observable state management
  */
@@ -123,11 +122,11 @@ export const Model = function(data = {}) {
    * Fetch data from remote source
    */
   this.fetch = function(url, options = {}) {
-    if (!model.sandbox) {
-      return Promise.reject(new Error('Sandbox not available for fetch'));
+    if (!model.gui) {
+      return Promise.reject(new Error('gui not available for fetch'));
     }
 
-    return model.sandbox.fetch(url, options)
+    return model.gui.fetch(url, options)
       .then(response => {
         if (options.parse && typeof model.parse === 'function') {
           return model.parse(response.data);
@@ -143,8 +142,8 @@ export const Model = function(data = {}) {
    * Save model data to remote source
    */
   this.save = function(url, options = {}) {
-    if (!model.sandbox) {
-      return Promise.reject(new Error('Sandbox not available for save'));
+    if (!model.gui) {
+      return Promise.reject(new Error('gui not available for save'));
     }
 
     const data = model.toJSON();
@@ -155,7 +154,7 @@ export const Model = function(data = {}) {
       ...options
     };
 
-    return model.sandbox.fetch(url, settings)
+    return model.gui.fetch(url, settings)
       .then(response => response.data);
   };
 
@@ -165,12 +164,12 @@ export const Model = function(data = {}) {
 /**
  * View factory - Template rendering and DOM manipulation
  */
-export const View = function(sandbox, options = {}) {
+export const View = function(gui, options = {}) {
   const view = this;
   
-  this.sandbox = sandbox;
+  this.gui = gui;
   this.options = options;
-  this.el = options.el ? sandbox.$(options.el) : null;
+  this.el = options.el ? gui.$(options.el) : null;
   this.template = options.template || null;
   this.events = options.events || {};
   this._boundEvents = [];
@@ -228,7 +227,7 @@ export const View = function(sandbox, options = {}) {
       const method = typeof handler === 'string' ? view[handler] : handler;
 
       if (!method) {
-        view.sandbox.warn(`Event handler ${handler} not found`);
+        view.gui.warn(`Event handler ${handler} not found`);
         return;
       }
 
@@ -332,10 +331,10 @@ export const View = function(sandbox, options = {}) {
 /**
  * Controller factory - Coordinates Model and View
  */
-export const Controller = function(sandbox, options = {}) {
+export const Controller = function(gui, options = {}) {
   const controller = this;
   
-  this.sandbox = sandbox;
+  this.gui = gui;
   this.options = options;
   this.model = options.model || null;
   this.view = options.view || null;
@@ -413,7 +412,7 @@ export const Controller = function(sandbox, options = {}) {
       return Promise.reject(new Error('Model not available'));
     }
 
-    const form = controller.sandbox.$(formSelector);
+    const form = controller.gui.$(formSelector);
     if (!form.length) {
       return Promise.reject(new Error(`Form not found: ${formSelector}`));
     }
@@ -457,48 +456,37 @@ export const Controller = function(sandbox, options = {}) {
   return this;
 };
 
-/**
- * Create a new Model instance
- */
 export const createModel = (data) => new Model(data);
-
-/**
- * Create a new View instance
- */
-export const createView = (sandbox, options) => new View(sandbox, options);
-
-/**
- * Create a new Controller instance
- */
-export const createController = (sandbox, options) => new Controller(sandbox, options);
+export const createView = (gui, options) => new View(gui, options);
+export const createController = (gui, options) => new Controller(gui, options);
 
 /**
  * MVC Plugin for GUI
  */
-export const MVCPlugin = function(gui, options) {
+export const MVCPlugin = function(fear, options) {
   const plugin = {};
 
   /**
-   * Load hook - extend sandbox with MVC factories
+   * Load hook - extend gui with MVC factories
    */
-  plugin.load = function(sandbox) {
-    // Add MVC factories to sandbox
-    sandbox.Model = (data) => {
+  plugin.load = function(gui) {
+    // Add MVC factories to gui
+    gui.Model = (data) => {
       const model = new Model(data);
-      model.sandbox = sandbox;
+      model.gui = gui;
       return model;
     };
 
-    sandbox.View = (opts) => new View(sandbox, opts);
+    gui.View = (opts) => new View(gui, opts);
 
-    sandbox.Controller = (opts) => new Controller(sandbox, opts);
+    gui.Controller = (opts) => new Controller(gui, opts);
 
     // Convenience method to create complete MVC setup
-    sandbox.createMVC = (config = {}) => {
-      const model = config.modelData ? sandbox.Model(config.modelData) : null;
-      const view = config.viewOptions ? sandbox.View(config.viewOptions) : null;
+    gui.createMVC = (config = {}) => {
+      const model = config.modelData ? gui.Model(config.modelData) : null;
+      const view = config.viewOptions ? gui.View(config.viewOptions) : null;
       
-      const controller = sandbox.Controller({
+      const controller = gui.Controller({
         model,
         view,
         routes: config.routes || {},
@@ -517,6 +505,8 @@ export const MVCPlugin = function(gui, options) {
 
   return plugin;
 };
+
+FEAR.use(MVCPlugin);
 
 export default { 
     Model, 
