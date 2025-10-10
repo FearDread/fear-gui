@@ -1,4 +1,3 @@
-import { $ as $$1 } from 'jQuery';
 
 const utils = {
     /* jQuery $.extend pointer */
@@ -2465,7 +2464,7 @@ var MVCPlugin$1 = {
  * Performance Metrics Module
  * Monitors route loading times, cache performance, and module lifecycle events
  */
-const Metrics = FEAR$2.create('Metrics', function(fear, options) {
+const Metrics = FEAR.create('Metrics', function(fear, options) {
   const metrics = this;
   
   // Private state
