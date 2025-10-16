@@ -1,25 +1,31 @@
 (($, window, undefined) => {
+    if (typeof FEAR === undefined) {
+        console.log('Unable to find global FEAR object');
+        throw new Error();
+    }
     // ============================================
     // Core App Module
     // ============================================
     FEAR.create('FearCore', (GUI) => {
 
-        const createPreloader = () => ({
-            init: async () => {
-                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                const $preloader = GUI.$('#preloader');
+        const createPreloader = () => {
+            return {
+                init: async () => {
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    const $preloader = GUI.$('#preloader');
 
-                if (!isMobile) {
-                    await GUI.timeout(800);
-                    $preloader.addClass('preloaded');
-                    await GUI.timeout(1200);
-                    $preloader.remove();
-                } else {
-                    $preloader.remove();
+                    if (!isMobile) {
+                        await GUI.timeout(800);
+                        $preloader.addClass('preloaded');
+                        await GUI.timeout(1200);
+                        $preloader.remove();
+                    } else {
+                        $preloader.remove();
+                    }
+                    return true;
                 }
-                return true;
             }
-        });
+        };
 
         const createModalManager = () => {
             let $modalBox = null;
@@ -62,39 +68,45 @@
             };
         };
 
-        const createMobileMenu = () => ({
-            init: async () => {
-                const $hamburger = GUI.$('.fear_topbar .trigger .hamburger');
-                const $mobileMenu = GUI.$('.fear_mobile_menu');
-                const $menuItems = GUI.$('.fear_mobile_menu ul li a');
+        const createMobileMenu = () => {
+            const $hamburger = GUI.$('.fear_topbar .trigger .hamburger');
+            const $mobileMenu = GUI.$('.fear_mobile_menu');
+            const $menuItems = GUI.$('.fear_mobile_menu ul li a');
 
-                const toggleMenu = (e) => {
-                    e.preventDefault();
-                    if ($hamburger.hasClass('is-active')) {
-                        $hamburger.removeClass('is-active');
-                        $mobileMenu.removeClass('opened');
-                    } else {
-                        $hamburger.addClass('is-active');
-                        $mobileMenu.addClass('opened');
-                    }
-                };
+            return {
 
-                const closeMenu = () => {
-                    $hamburger.removeClass('is-active');
-                    $mobileMenu.removeClass('opened');
-                };
+                init: async () => {
+                    GUI.$('.fear_all_wrap').prepend(modalHtml);
+                    $modalBox = GUI.$('.fear_modalbox');
 
-                $hamburger.on('click', toggleMenu);
-                $menuItems.on('click', closeMenu);
+                    // Bind close event
+                    $modalBox.find('.close a').on('click', (e) => {
+                        e.preventDefault();
+                        this.close();
+                    });
 
-                return true;
+                    return true;
+                },
+
+                open: async (content) => {
+                    $modalBox.find('.description_wrap').html(content);
+                    $modalBox.addClass('opened');
+                    return true;
+                },
+
+                close: async () => {
+                    $modalBox.removeClass('opened');
+                    $modalBox.find('.description_wrap').html('');
+                    return true;
+                }
             }
-        });
+
+        };
 
         return {
             load: async (options) => {
                 GUI.log('FearCore: Loading...');
-                GUI.GDREA = {};
+
                 const preloader = createPreloader();
                 const modalManager = createModalManager();
                 const mobileMenu = createMobileMenu();
@@ -468,10 +480,10 @@
         const mods = ['FearCore', 'FearRouter', 'FearMethods', 'FearNavigation'];
         FEAR.start()
             .then(() => {
-                FEAR.log('%c FEAR SPA INITIALIZED ', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
+                FEAR.debug.log('FEAR SPA INITIALIZED ', 'background: #222; color: #bada55; font-size: 16px; font-weight: bold;');
             })
             .catch(err => {
-                FEAR.warn('Failed to start application:', err);
+                FEAR.debug.warn('Failed to start application:', err);
             });
     });
 
