@@ -42,6 +42,55 @@ const GUI = function() {
   this.registry = new Registry().create(this.config);
   this.utils = utils;
 
+  // Private helpers
+  const _runInstPlugins = (handler, $gui) => {
+    const tasks = gui.state.plugins
+      .filter(p => typeof p.plugin?.[handler] === 'function')
+      .map(p => () => Promise.resolve(p.plugin[handler]($gui, p.options)));
+
+    return utils.run.series(tasks);
+  };
+
+  const _createInst = (moduleId, opts) => {
+    const id = opts.instanceId || moduleId;
+    if (gui.state.instances[id]) {
+      return Promise.resolve({ instance: gui.state.instances[id], options: opts.options });
+    }
+
+    const module = gui.state.modules[moduleId];
+    const iOpts = { ...module.options, ...opts.options };
+
+    const sb = new SandBox().create(gui, id, iOpts, moduleId);
+
+    return _runInstPlugins('load', sb)
+      .then(() => {
+        const instance = module.creator(sb);
+
+        if (typeof instance.load !== 'function') {
+          if (instance.fn && typeof instance.fn === 'function') {
+            gui.plugin(instance, id);
+            return { instance, options: iOpts };
+          }
+          throw new Error("module has no 'load' or 'fn' method");
+        }
+
+        gui.state.instances[id] = instance;
+        gui.state.sandboxes[id] = sb;
+
+        // Register instance in registry
+        gui.registry.register(id, instance);
+        return { instance, options: iOpts };
+      });
+  };
+
+  const _startInst = (mods) => {
+    if (!mods) mods = Object.keys(gui.state.modules);
+
+    const tasks = mods.map(mid => () => gui.start(mid, gui.state.modules[mid].options));
+
+    return utils.run.parallel(tasks);
+  };
+
   // Public API
   this.configure = function(options) {
     if (options && utils.isObj(options)) {
@@ -73,11 +122,11 @@ const GUI = function() {
       utils.isType('object', opt, 'second parameter') ||
       (!gui.state.modules[moduleId] ? "module doesn't exist" : undefined);
 
-    if (!moduleId) return gui._startInst();
+    if (!moduleId) return _startInst();
 
-    if (utils.isArr(moduleId)) return gui._startInst(moduleId);
+    if (utils.isArr(moduleId)) return _startInst(moduleId);
 
-    if (utils.isFunc(moduleId)) return gui._startInst();
+    if (utils.isFunc(moduleId)) return _startInst();
 
     if (error) return Promise.reject(new Error(error));
 
@@ -86,7 +135,7 @@ const GUI = function() {
     }
 
     return gui.boot()
-      .then(() => gui._createInst(moduleId, opt))
+      .then(() => _createInst(moduleId, opt))
       .then(({ instance, options }) => {
         if (instance.load && typeof instance.load === 'function') {
           const loadResult = instance.load(options);
@@ -212,54 +261,6 @@ const GUI = function() {
 
   return this;
 };
-
-GUI.prototype = {
-  _runInstPlugins(handler, $gui) {
-    const tasks = gui.state.plugins
-      .filter(p => typeof p.plugin?.[handler] === 'function')
-      .map(p => () => Promise.resolve(p.plugin[handler]($gui, p.options)));
-
-    return utils.run.series(tasks);
-  },
-  _createInst(moduleId, opts) {
-    const id = opts.instanceId || moduleId;
-    if (gui.state.instances[id]) {
-      return Promise.resolve({ instance: gui.state.instances[id], options: opts.options });
-    }
-
-    const module = gui.state.modules[moduleId];
-    const iOpts = { ...module.options, ...opts.options };
-
-    const sb = new SandBox().create(gui, id, iOpts, moduleId);
-
-    return this._runInstPlugins('load', sb)
-      .then(() => {
-        const instance = module.creator(sb);
-
-        if (typeof instance.load !== 'function') {
-          if (instance.fn && typeof instance.fn === 'function') {
-            gui.plugin(instance, id);
-            return { instance, options: iOpts };
-          }
-          throw new Error("module has no 'load' or 'fn' method");
-        }
-
-        gui.state.instances[id] = instance;
-        gui.state.sandboxes[id] = sb;
-
-        // Register instance in registry
-        gui.registry.register(id, instance);
-        return { instance, options: iOpts };
-      });
-  },
-  _startInst: (mods) => {
-    if (!mods) mods = Object.keys(gui.state.modules);
-
-    const tasks = mods.map(mid => () => gui.start(mid, gui.state.modules[mid].options));
-
-    return utils.run.parallel(tasks);
-  }
-}
 
 export const createGUI = () => new GUI();
 export const FEAR = new GUI();

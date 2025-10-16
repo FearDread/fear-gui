@@ -1,4 +1,4 @@
-import FEAR from "../core/gui";
+import { FEAR } from "../core/gui";
 /**
  * Performance Metrics Module
  * Monitors route loading times, cache performance, and module lifecycle events
