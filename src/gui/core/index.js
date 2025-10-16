@@ -7,14 +7,14 @@ import Metrics from "../modules/metrics";
 
 FEAR.use(MVCPlugin);
 // Register as GUI plugin
-FEAR.use(function (GUI, options) {
-  console.log('gui in router', fear);
+FEAR.use(function (GUI) {
+  console.log('gui outside load func router', GUI);
   GUI.Router = Router;
 
   // Add router helper to sandbox
   return {
     load: function (options) {
-      console.log('sandbox in plugin ', GUI);
+      console.log('Sanbox in Router plugin ', options);
       GUI.router = function (config) {
         return new Router(config);
       };

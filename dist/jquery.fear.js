@@ -343,6 +343,7 @@ const utils = {
                     Promise.resolve(task())
                         .then(r => [...results, r])
                         .catch(err => {
+                            console.log('task error = ', err);
                             const error = new Error(`Task ${idx} failed`);
                             error.originalError = err;
                             throw error;
@@ -2656,7 +2657,7 @@ const Metrics = FEAR$1.create('Metrics', function(GUI) {
     load: function(options = {}) {
       return Promise.resolve()
         .then(() => {
-          GUI.debug.log('Metrics module loading with options:', options);
+          GUI.log('Metrics module loading with options:', options);
 
           // Create performance monitor
           metrics.monitor = createPerformanceMonitor(options.enabled !== false);
@@ -2811,14 +2812,14 @@ const Metrics = FEAR$1.create('Metrics', function(GUI) {
 
 FEAR$1.use(MVCPlugin$1);
 // Register as GUI plugin
-FEAR$1.use(function (GUI, options) {
-  console.log('gui in router', fear);
+FEAR$1.use(function (GUI) {
+  console.log('gui outside load func router', GUI);
   GUI.Router = Router;
 
   // Add router helper to sandbox
   return {
     load: function (options) {
-      console.log('sandbox in plugin ', GUI);
+      console.log('Sanbox in Router plugin ', options);
       GUI.router = function (config) {
         return new Router(config);
       };

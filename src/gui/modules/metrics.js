@@ -197,7 +197,7 @@ export const Metrics = FEAR.create('Metrics', function(GUI) {
     load: function(options = {}) {
       return Promise.resolve()
         .then(() => {
-          GUI.debug.log('Metrics module loading with options:', options);
+          GUI.log('Metrics module loading with options:', options);
 
           // Create performance monitor
           metrics.monitor = createPerformanceMonitor(options.enabled !== false);

@@ -346,6 +346,7 @@ export const utils = {
                     Promise.resolve(task())
                         .then(r => [...results, r])
                         .catch(err => {
+                            console.log('task error = ', err);
                             const error = new Error(`Task ${idx} failed`);
                             error.originalError = err;
                             throw error;
