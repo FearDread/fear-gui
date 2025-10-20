@@ -31,7 +31,7 @@ export const Broker = function(options = {}) {
 
     const removed = originalLength - this.channels[channel].length;
     if (removed > 0) {
-      utils.log(`Removed ${removed} subscription(s) from '${channel}'`);
+      console.log(`Removed ${removed} subscription(s) from '${channel}'`);
     }
 
     return this.channels[channel];
@@ -172,7 +172,7 @@ export const Broker = function(options = {}) {
    */
   this.clear = function() {
     Object.keys(this.channels).forEach(k => delete this.channels[k]);
-    utils.log('All channels cleared');
+    console.log('All channels cleared');
     return this;
   };
 

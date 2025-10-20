@@ -6,7 +6,7 @@ FEAR.create('Preloader', function (GUI) {
     return {
         load: function (options = {}) {
             return new Promise((resolve) => {
-                GUI.debug.log('Preloader module loading');
+                GUI.log('Preloader module loading');
 
                 const speed = options.speed || 500;
                 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(navigator.userAgent);
@@ -51,7 +51,7 @@ FEAR.create('Modal', function (GUI) {
 
     return {
         load: function (options = {}) {
-            GUI.debug.log('Modal module loading');
+            GUI.log('Modal module loading');
 
             modal._setupDOM();
 
@@ -91,7 +91,7 @@ FEAR.create('Modal', function (GUI) {
 FEAR.create('MobileMenu', function (GUI) {
     return {
         load: function (options = {}) {
-            GUI.debug.log('Mobile menu module loading');
+            GUI.log('Mobile menu module loading');
 
             const $hamburger = GUI.$('.fear_topbar .trigger .hamburger');
             const $mobileMenu = GUI.$('.fear_mobile_menu');
@@ -312,14 +312,14 @@ FEAR.create('UIMethods', function (GUI) {
 
     return {
         load: function (options = {}) {
-            GUI.debug.log('UI Methods module loading');
+            GUI.log('UI Methods module loading');
 
             // Run all methods
             Object.keys(methods).forEach(key => {
                 try {
                     methods[key]();
                 } catch (err) {
-                    GUI.debug.warn(`Error running method ${key}:`, err);
+                    GUI.warn(`Error running method ${key}:`, err);
                 }
             });
 
@@ -408,33 +408,21 @@ FEAR.configure({
 
 FEAR.start()
     .then(() => {
-        FEAR.debug.log('✅ FEAR SPA initialized successfully');
+        FEAR.debug.log('FEAR SPA initialized successfully');
         // Emit application ready event
+        /*
         FEAR.start('Metrics', {
             displayMetrics: false,
             enabled: true
         });
-
+        */
         FEAR.broker.emit('app:ready');
     })
     .catch((err) => {
-        console.error('❌ Error loading FEAR SPA:', err);
+        console.error('Error loading FEAR SPA:', err);
         FEAR.debug.warn('Application startup failed:', err);
     })
 
 
-
-// Wait for DOM ready
-await new Promise(resolve => $(document).ready(resolve));
-    /*
-    // Start UI modules
-    await FEAR.start('Router');
-    await FEAR.start('UIMethods');
-    await FEAR.start('ContactForm');
-        // Start all modules in sequence
-        await FEAR.start('Preloader');
-        await FEAR.start('Modal');
-        await FEAR.start('MobileMenu');
-    */
 
 }) (jQuery, window);
